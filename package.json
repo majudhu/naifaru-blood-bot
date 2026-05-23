@@ -1,0 +1,26 @@
+{
+	"name": "naifaru-blood-bot",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"build": "nuxt build",
+		"dev": "nuxt dev",
+		"generate": "nuxt generate",
+		"preview": "pnpm run build && wrangler dev",
+		"postinstall": "nuxt prepare",
+		"deploy": "pnpm run build && wrangler deploy",
+		"cf-typegen": "wrangler types"
+	},
+	"dependencies": {
+		"nuxt": "^4.4.6",
+		"vue": "^3.5.34",
+		"vue-router": "^5.0.7"
+	},
+	"devDependencies": {
+		"@types/node": "^25.9.1",
+		"h3": "2.0.1-rc.22",
+		"nitro-cloudflare-dev": "^0.2.2",
+		"nitropack": "^2.13.4",
+		"wrangler": "^4.93.1"
+	}
+}
