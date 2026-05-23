@@ -1,26 +1,48 @@
 {
-	"name": "naifaru-blood-bot",
-	"type": "module",
-	"private": true,
-	"scripts": {
-		"build": "nuxt build",
-		"dev": "nuxt dev",
-		"generate": "nuxt generate",
-		"preview": "pnpm run build && wrangler dev",
-		"postinstall": "nuxt prepare",
-		"deploy": "pnpm run build && wrangler deploy",
-		"cf-typegen": "wrangler types"
-	},
-	"dependencies": {
-		"nuxt": "^4.4.6",
-		"vue": "^3.5.34",
-		"vue-router": "^5.0.7"
-	},
-	"devDependencies": {
-		"@types/node": "^25.9.1",
-		"h3": "2.0.1-rc.22",
-		"nitro-cloudflare-dev": "^0.2.2",
-		"nitropack": "^2.13.4",
-		"wrangler": "^4.93.1"
-	}
+  "name": "naifaru-blood-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "pnpm run build && wrangler dev",
+    "postinstall": "nuxt prepare",
+    "deploy": "pnpm run build && wrangler deploy",
+    "cf-typegen": "wrangler types",
+    "format": "oxfmt --ignore-path .gitignore .",
+    "format:check": "oxfmt --ignore-path .gitignore --check .",
+    "lint": "oxlint --ignore-path .gitignore .",
+    "lint:fix": "oxlint --ignore-path .gitignore --fix .",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "test:unit": "vitest --project unit",
+    "test:nuxt": "vitest --project nuxt",
+    "test:e2e": "vitest --project e2e"
+  },
+  "dependencies": {
+    "@nuxt/icon": "2.2.2",
+    "@nuxt/test-utils": "4.0.3",
+    "@nuxt/ui": "^4.8.0",
+    "nuxt": "^4.4.6",
+    "nuxt-auth-utils": "0.5.29",
+    "tailwindcss": "^4.3.0",
+    "vue": "^3.5.34",
+    "vue-router": "^5.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@vue/test-utils": "^2.4.10",
+    "h3": "2.0.1-rc.22",
+    "happy-dom": "^20.9.0",
+    "nitro-cloudflare-dev": "^0.2.2",
+    "nitropack": "^2.13.4",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.66.0",
+    "oxlint-tsgolint": "^0.23.0",
+    "vitest": "^4.1.7",
+    "wrangler": "^4.93.1"
+  }
 }

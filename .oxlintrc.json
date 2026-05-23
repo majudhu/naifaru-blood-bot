@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    ".nuxt/**",
+    ".output/**",
+    ".wrangler/**",
+    "coverage/**",
+    "worker-configuration.d.ts"
+  ],
+  "plugins": ["typescript", "unicorn", "oxc", "vue", "vitest"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {},
+  "env": {
+    "builtin": true
+  },
+  "options": {
+    "typeAware": true,
+    "typeCheck": true
+  }
+}
