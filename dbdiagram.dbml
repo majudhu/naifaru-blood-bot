@@ -1,0 +1,109 @@
+Project naifaru_blood_bot {
+  database_type: 'SQLite'
+  Note: 'Simple first-version schema for the Naifaru blood bot.'
+}
+
+Enum blood_type {
+  "A+"
+  "A-"
+  "B+"
+  "B-"
+  "O+"
+  "O-"
+  "AB+"
+  "AB-"
+}
+
+Enum request_status {
+  open
+  fulfilled
+  cancelled
+}
+
+Enum donor_response_status {
+  contacted
+  accepted
+  declined
+  donated
+}
+
+Enum staff_role {
+  admin
+  nurse
+}
+
+Table donors {
+  id integer [pk, increment]
+  telegram_user_id integer [unique]
+  telegram_username varchar
+  name varchar [not null]
+  phone varchar [unique]
+  blood_type blood_type [not null]
+  island varchar
+  is_available boolean [not null, default: true]
+  last_donated_at timestamp
+  notes text
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  Note: 'People who can donate blood. Requesters/patients can stay as plain request fields until the app needs full profiles for them.'
+}
+
+Table blood_requests {
+  id integer [pk, increment]
+  requester_name varchar
+  requester_phone varchar
+  requester_telegram_user_id integer
+  patient_name varchar
+  blood_type blood_type [not null]
+  location varchar
+  units_needed integer [not null, default: 1]
+  urgent boolean [not null, default: false]
+  status request_status [not null, default: 'open']
+  telegram_chat_id integer
+  telegram_message_id integer
+  notes text
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+}
+
+Table staff {
+  id integer [pk, increment]
+  username varchar [not null, unique]
+  password text [not null]
+  role staff_role [not null, default: 'nurse']
+  is_active boolean [not null, default: true]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+}
+
+Table donor_responses {
+  id integer [pk, increment]
+  request_id integer [not null, ref: > blood_requests.id]
+  donor_id integer [not null, ref: > donors.id]
+  status donor_response_status [not null, default: 'contacted']
+  responded_at timestamp
+  notes text
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  Indexes {
+    (request_id, donor_id) [unique]
+  }
+}
+
+Table donations {
+  id integer [pk, increment]
+  donor_id integer [not null, ref: > donors.id]
+  request_id integer [ref: > blood_requests.id]
+  recorded_by_staff_id integer [ref: > staff.id]
+  donated_at timestamp [not null]
+  notes text
+  created_at timestamp [not null]
+}
+
+Table blacklist {
+  phone varchar [unique]
+  telegram varchar [unique]
+  reason text
+}

@@ -39,7 +39,6 @@
     "@vitest/coverage-v8": "^4.1.7",
     "@vue/test-utils": "^2.4.10",
     "drizzle-kit": "^0.31.10",
-    "h3": "2.0.1-rc.22",
     "happy-dom": "^20.9.0",
     "nitro-cloudflare-dev": "^0.2.2",
     "nitropack": "^2.13.4",

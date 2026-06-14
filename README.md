@@ -2,74 +2,35 @@
 
 Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
 
-## Setup
+## Development Setup
 
-Make sure to install dependencies:
+1. Install PNPM v9 or later <https://pnpm.io/installation>
+2. Install dependencies `pnpm install`
+3. Prepare database `pnpm wrangler d1 migrations apply naifaru-blood-bot --local`
+4. Open <http://localhost:3000> on browser
+5. Initial username is 'naifaru' and password is 'leyrobot'
 
-```bash
-# npm
-npm install
+## Database Migrations
 
-# pnpm
-pnpm install
+### Create Production Database Migrations
 
-# yarn
-yarn install
+1. Modify the `server/database/schema.ts` file
+2. Run `pnpm drizzle-kit generate`
 
-# bun
-bun install
-```
+### To reset local database
 
-## Development Server
+Remove the files in `.wrangler/state/v3/d1/miniflare-D1DatabaseObject`
 
-Start the development server on `http://localhost:3000`:
+## Production Preview
 
-```bash
-# npm
-npm run dev
+1. Follow Development Setup steps 1 to 3
+2. `pnpm preview`
+3. Open <http://localhost:8787> on browser
 
-# pnpm
-pnpm dev
+## Manually Deploy Current Code to Cloudflare Workers
 
-# yarn
-yarn dev
-
-# bun
-bun run dev
-```
-
-## Production
-
-Build the application for production:
-
-```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
+1. Follow Development Setup steps 1 and 2
+2. `pnpm deploy`
+3. Change the default user password ASAP
 
 Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
