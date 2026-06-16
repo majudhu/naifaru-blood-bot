@@ -2,12 +2,12 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const timestampColumns = () => ({
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at")
+    .default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
+    .default(sql`(unixepoch())`),
 });
 
 export const bloodTypeValues = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] as const;
@@ -26,7 +26,9 @@ export const users = sqliteTable(
     bloodType: text("blood_type", { enum: bloodTypeValues }).notNull(),
     island: text("island"),
     isAvailable: integer("is_available", { mode: "boolean" }).notNull().default(false),
-    lastDonatedAt: text("last_donated_at"),
+    lastDonatedAt: integer("last_donated_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`0`),
     notes: text("notes"),
     ...timestampColumns(),
   },
@@ -107,13 +109,13 @@ export const donations = sqliteTable(
       .references(() => users.id),
     requestId: integer("request_id").references(() => bloodRequests.id),
     recordedByStaffId: integer("recorded_by_staff_id").references(() => staff.id),
-    donatedAt: text("donated_at")
+    donatedAt: integer("donated_at", { mode: "timestamp" })
       .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+      .default(sql`(unixepoch())`),
     notes: text("notes"),
-    createdAt: text("created_at")
+    createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+      .default(sql`(unixepoch())`),
   },
   (table) => [
     index("donations_donor_id_idx").on(table.donorId),

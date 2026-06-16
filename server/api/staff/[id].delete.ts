@@ -3,8 +3,9 @@ import { createError } from "h3";
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event);
-  const staffId = +getRouterParam(event, "id")!;
+  if (user.role !== "admin") throw createError({ statusCode: 403, statusMessage: "Forbidden" });
 
+  const staffId = +getRouterParam(event, "id")!;
   if (!staffId) throw createError({ statusCode: 400, statusMessage: "Invalid staff ID" });
 
   if (staffId === user.id)

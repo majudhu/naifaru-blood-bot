@@ -75,6 +75,15 @@ function validate(state: Partial<typeof editStaff>): FormError[] {
   else return [];
 }
 
+function resetForm() {
+  editStaffId.value = 0;
+  editStaff.username = "";
+  editStaff.password = "";
+  editStaff.confirmPassword = "";
+  editStaff.role = "nurse";
+  editStaff.isActive = true;
+}
+
 async function saveStaff() {
   if (editStaff.password !== editStaff.confirmPassword) {
     toast.add({ title: "Passwords do not match", color: "error" });
@@ -99,12 +108,7 @@ async function saveStaff() {
     toast.add({ title: editStaffId.value ? "Staff updated" : "Staff added", color: "success" });
 
     showDialog.value = false;
-    editStaffId.value = 0;
-    editStaff.username = "";
-    editStaff.password = "";
-    editStaff.confirmPassword = "";
-    editStaff.role = "nurse";
-    editStaff.isActive = true;
+    resetForm();
   } catch (error) {
     toast.add({
       title: editStaffId.value ? "Could not update staff" : "Could not add staff",
@@ -116,12 +120,7 @@ async function saveStaff() {
 }
 
 function addStaff() {
-  editStaffId.value = 0;
-  editStaff.username = "";
-  editStaff.password = "";
-  editStaff.confirmPassword = "";
-  editStaff.role = "nurse";
-  editStaff.isActive = true;
+  resetForm();
   showDialog.value = true;
 }
 
@@ -142,12 +141,7 @@ async function deleteStaff() {
     refresh();
     toast.add({ title: "Staff deleted", color: "warning" });
     showDialog.value = false;
-    editStaffId.value = 0;
-    editStaff.username = "";
-    editStaff.password = "";
-    editStaff.confirmPassword = "";
-    editStaff.role = "nurse";
-    editStaff.isActive = true;
+    resetForm();
   } catch (error) {
     toast.add({
       title: "Could not delete staff",

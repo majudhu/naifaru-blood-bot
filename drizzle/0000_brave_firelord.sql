@@ -16,8 +16,8 @@ CREATE TABLE `blood_requests` (
 	`urgent` integer DEFAULT false NOT NULL,
 	`status` text DEFAULT 'open' NOT NULL,
 	`notes` text,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
@@ -28,9 +28,9 @@ CREATE TABLE `donations` (
 	`donor_id` integer NOT NULL,
 	`request_id` integer,
 	`recorded_by_staff_id` integer,
-	`donated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`donated_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`notes` text,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`donor_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`request_id`) REFERENCES `blood_requests`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`recorded_by_staff_id`) REFERENCES `staff`(`id`) ON UPDATE no action ON DELETE no action
@@ -47,8 +47,8 @@ CREATE TABLE `donor_responses` (
 	`status` text DEFAULT 'contacted' NOT NULL,
 	`responded_at` text,
 	`notes` text,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`request_id`) REFERENCES `blood_requests`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`donor_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
@@ -63,8 +63,8 @@ CREATE TABLE `staff` (
 	`password` text NOT NULL,
 	`role` text DEFAULT 'nurse' NOT NULL,
 	`is_active` integer DEFAULT true NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `staff_username_unique` ON `staff` (`username`);--> statement-breakpoint
@@ -79,16 +79,13 @@ CREATE TABLE `users` (
 	`blood_type` text NOT NULL,
 	`island` text,
 	`is_available` integer DEFAULT false NOT NULL,
-	`last_donated_at` text,
+	`last_donated_at` integer DEFAULT 0 NOT NULL,
 	`notes` text,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_telegram_user_id_unique` ON `users` (`telegram_user_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `users_phone_unique` ON `users` (`phone`);--> statement-breakpoint
 CREATE INDEX `users_blood_type_idx` ON `users` (`blood_type`);--> statement-breakpoint
 CREATE INDEX `users_is_available_idx` ON `users` (`is_available`);
-
--- passowrd -> leyrobot 
-INSERT INTO `staff` (username, password, role) VALUES ('naifaru', '$scrypt$n=16384,r=8,p=1$hOqlqBpT/N/T1M0Z858bcg$VXWF2uYLHKWmF9MQuRAh7iBf+fNea1wGGnUTIi2DsJKK/5/AyxMspwnL7sSCM/JSbSM7vBRBTW0RrngmPG/9Kw', 'admin');

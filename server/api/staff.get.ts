@@ -6,5 +6,5 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event);
 
-  return db.query.staff.findMany();
+  return db.query.staff.findMany({ columns: { password: false } });
 });
