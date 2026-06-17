@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  bloodTypeValues,
+  donorResponseStatusValues,
+  requestStatusValues,
+  staffRoleValues,
+} from "../shared/utils/const";
 
 const timestampColumns = () => ({
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -10,33 +16,31 @@ const timestampColumns = () => ({
     .default(sql`(unixepoch())`),
 });
 
-export const bloodTypeValues = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] as const;
-export const requestStatusValues = ["open", "fulfilled", "cancelled"] as const;
-export const donorResponseStatusValues = ["contacted", "accepted", "declined", "donated"] as const;
-export const staffRoleValues = ["admin", "nurse"] as const;
-
 export const users = sqliteTable(
   "users",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    telegramUserId: integer("telegram_user_id"),
-    telegramUsername: text("telegram_username"),
+    telegramUserId: integer("telegram_user_id").unique(),
+    telegramUsername: text("telegram_username").unique(),
     name: text("name").notNull(),
-    phone: text("phone"),
-    bloodType: text("blood_type", { enum: bloodTypeValues }).notNull(),
-    island: text("island"),
+    phone: text("phone").unique(),
+    bloodType: text("blood_type", { enum: bloodTypeValues }).notNull().default(""),
+    nid: text("nid").unique(),
+    sex: text("sex", { enum: ["m", "f"] }).notNull(),
+    dob: integer("dob", { mode: "timestamp" }).notNull(),
+    address: text("address").notNull().default(""),
+    island: text("island").notNull().default(""),
     isAvailable: integer("is_available", { mode: "boolean" }).notNull().default(false),
     lastDonatedAt: integer("last_donated_at", { mode: "timestamp" })
       .notNull()
       .default(sql`0`),
-    notes: text("notes"),
+    notes: text("notes").notNull().default(""),
     ...timestampColumns(),
   },
   (table) => [
-    uniqueIndex("users_telegram_user_id_unique").on(table.telegramUserId),
-    uniqueIndex("users_phone_unique").on(table.phone),
     index("users_blood_type_idx").on(table.bloodType),
     index("users_is_available_idx").on(table.isAvailable),
+    index("users_last_donated_at_idx").on(table.lastDonatedAt),
   ],
 );
 
@@ -46,12 +50,12 @@ export const bloodRequests = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     userId: integer("user_id").references(() => users.id),
     bloodType: text("blood_type", { enum: bloodTypeValues }).notNull(),
-    location: text("location"),
-    island: text("island"),
+    location: text("location").notNull().default(""),
+    island: text("island").notNull().default(""),
     unitsNeeded: integer("units_needed").notNull().default(1),
     urgent: integer("urgent", { mode: "boolean" }).notNull().default(false),
     status: text("status", { enum: requestStatusValues }).notNull().default("open"),
-    notes: text("notes"),
+    notes: text("notes").notNull().default(""),
     ...timestampColumns(),
   },
   (table) => [
@@ -64,14 +68,13 @@ export const staff = sqliteTable(
   "staff",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    username: text("username").notNull(),
+    username: text("username").notNull().unique(),
     password: text("password").notNull(),
     role: text("role", { enum: staffRoleValues }).notNull().default("nurse"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     ...timestampColumns(),
   },
   (table) => [
-    uniqueIndex("staff_username_unique").on(table.username),
     index("staff_role_idx").on(table.role),
     index("staff_is_active_idx").on(table.isActive),
   ],
@@ -88,8 +91,10 @@ export const donorResponses = sqliteTable(
       .notNull()
       .references(() => users.id),
     status: text("status", { enum: donorResponseStatusValues }).notNull().default("contacted"),
-    respondedAt: text("responded_at"),
-    notes: text("notes"),
+    respondedAt: integer("responded_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    notes: text("notes").notNull().default(""),
     ...timestampColumns(),
   },
   (table) => [
@@ -112,7 +117,7 @@ export const donations = sqliteTable(
     donatedAt: integer("donated_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),
-    notes: text("notes"),
+    notes: text("notes").notNull().default(""),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),
@@ -128,7 +133,7 @@ export const donations = sqliteTable(
 export const blacklist = sqliteTable("blacklist", {
   phone: text("phone").unique(),
   telegram: text("telegram").unique(),
-  reason: text("reason"),
+  reason: text("reason").notNull().default(""),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({

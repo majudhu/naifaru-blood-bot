@@ -19,11 +19,18 @@ async function onSubmit(e: FormSubmitEvent<typeof state>) {
 <template>
   <UForm :state="state" class="flex flex-col gap-4 max-w-sm mx-auto p-5 sm:p-10" @submit="onSubmit">
     <UFormField label="Username">
-      <UInput v-model="state.username" class="w-full" required minlength="3" />
+      <UInput v-model="state.username" class="w-full" required minlength="3" maxlength="40" />
     </UFormField>
 
     <UFormField label="Password">
-      <UInput v-model="state.password" type="password" class="w-full" required minlength="8" />
+      <UInput
+        v-model="state.password"
+        type="password"
+        class="w-full"
+        required
+        minlength="8"
+        maxlength="128"
+      />
     </UFormField>
 
     <UButton class="w-fit px-10" type="submit">Login</UButton>

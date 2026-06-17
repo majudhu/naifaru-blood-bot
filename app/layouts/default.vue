@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { NavigationMenuItem, SlideoverProps } from "@nuxt/ui";
+import type { NavigationMenuItem } from "@nuxt/ui";
 
-const { clear } = useUserSession();
-const { user } = useUserSession();
+const { clear, user } = useUserSession();
 
 const open = ref(true);
 
@@ -17,7 +16,7 @@ function onSelect() {
 
 const items = computed<NavigationMenuItem[]>(() => [
   {
-    label: "Home",
+    label: "Dashboard",
     icon: "i-lucide-house",
     to: "/",
     onSelect,
@@ -40,10 +39,6 @@ const items = computed<NavigationMenuItem[]>(() => [
       ]
     : []),
 ]);
-
-const menu: SlideoverProps = {
-  title: "Menu",
-};
 </script>
 
 <template>
@@ -54,9 +49,12 @@ const menu: SlideoverProps = {
         orientation="vertical"
         :ui="{ link: 'p-1.5 overflow-hidden' }"
       />
-      <UButton color="error" @click="logout" variant="soft" leading-icon="i-lucide-log-out"
-        >Logout</UButton
-      >
+      <UBadge color="neutral" variant="subtle" size="lg" icon="i-lucide-user">
+        {{ user?.name }}
+      </UBadge>
+      <UButton color="error" @click="logout" variant="soft" leading-icon="i-lucide-log-out">
+        Logout
+      </UButton>
     </USidebar>
 
     <header class="flex items-center gap-4 p-4 lg:hidden">
@@ -68,9 +66,7 @@ const menu: SlideoverProps = {
         class="lg:hidden"
         @click="open = !open"
       />
-      <h1 class="text-xl font-semibold tracking-normal text-gray-950 dark:text-white">
-        Naifaru Blood Donors
-      </h1>
+      <h1 class="text-xl font-semibold pb-4">Naifaru Blood Donors</h1>
     </header>
 
     <main class="flex-1 p-4">

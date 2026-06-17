@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { createError } from "h3";
-import { CreateuserParser } from "../user.post";
+import { CreateuserParser } from "../users.post";
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event);

@@ -1,11 +1,15 @@
 import { createError } from "h3";
 import * as v from "valibot";
-import { bloodTypeValues } from "../schema";
 
 export const CreateuserParser = v.parser(
   v.object({
-    telegramUsername: v.optional(v.string()),
     name: v.string(),
+    telegramUsername: v.nullish(
+      v.pipe(
+        v.string(),
+        v.transform((s) => s || null),
+      ),
+    ),
     phone: v.nullish(
       v.union([
         v.pipe(
@@ -17,6 +21,19 @@ export const CreateuserParser = v.parser(
       ]),
     ),
     bloodType: v.picklist(bloodTypeValues),
+    nid: v.nullish(
+      v.union([
+        v.pipe(
+          v.string(),
+          v.empty(),
+          v.transform(() => null),
+        ),
+        v.pipe(v.string(), v.length(7)),
+      ]),
+    ),
+    sex: v.picklist(["m", "f"]),
+    dob: v.pipe(v.string(), v.toDate()),
+    address: v.string(),
     island: v.string(),
     isAvailable: v.optional(v.boolean(), false),
     lastDonatedAt: v.optional(v.pipe(v.string(), v.toDate())),

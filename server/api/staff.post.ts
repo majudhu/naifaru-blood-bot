@@ -5,7 +5,7 @@ const CreateStaffParser = v.parser(
   v.object({
     username: v.pipe(v.string(), v.trim(), v.minLength(3), v.maxLength(40)),
     password: v.pipe(v.string(), v.minLength(8), v.maxLength(128)),
-    role: v.picklist(schema.staffRoleValues),
+    role: v.picklist(staffRoleValues),
     isActive: v.optional(v.boolean(), true),
   }),
 );

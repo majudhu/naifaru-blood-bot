@@ -1,54 +1,26 @@
 <script setup lang="ts">
-import type { FormError, TableColumn, TableRow } from "@nuxt/ui";
-import type { Staff } from "#server/schema";
-import * as v from "valibot";
+import type { FormError, FormSubmitEvent, SelectItem, TableColumn, TableRow } from "@nuxt/ui";
+import { FetchError } from "ofetch";
+
+type Staff = NonNullable<typeof data.value>[number];
+type StaffRole = Staff["role"];
 
 const { user } = useUserSession();
 
 if (user.value?.role !== "admin") navigateTo("/");
 
-type StaffRole = Staff["role"];
-type StaffUser = Omit<Staff, "password">;
-
-const roleOptions = [
+const roles: SelectItem[] = [
   { label: "Admin", value: "admin" },
   { label: "Nurse", value: "nurse" },
-] satisfies { label: string; value: StaffRole }[];
-
-const columns: TableColumn<StaffUser>[] = [
-  {
-    id: "id",
-    accessorKey: "id",
-    header: "#",
-  },
-  {
-    id: "username",
-    accessorKey: "username",
-    header: "Username",
-  },
-  {
-    id: "role",
-    accessorKey: "role",
-    header: "Role",
-  },
-  {
-    id: "isActive",
-    accessorKey: "isActive",
-    header: "Active",
-    cell: ({ row }) => (row.getValue("isActive") ? "✅" : "❌"),
-  },
-  {
-    id: "updated",
-    accessorKey: "updatedAt",
-    header: "Updated",
-    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
-  },
 ];
 
 const toast = useToast();
 
-const editStaff = reactive<
-  Pick<Staff, "username" | "password" | "role" | "isActive"> & { confirmPassword: string }
+const edit = reactive<
+  Pick<Staff, "username" | "role" | "isActive"> & {
+    password: string;
+    confirmPassword: string;
+  }
 >({
   username: "",
   password: "",
@@ -59,85 +31,101 @@ const editStaff = reactive<
 
 const showDialog = ref(false);
 const isLoading = ref(false);
-const editStaffId = ref(0);
+const editId = ref(0);
 
-const isSelf = computed(() => editStaffId.value === user.value?.id);
-const isNew = computed(() => editStaffId.value === 0);
-const disableSubmit = computed(() => editStaff.password !== editStaff.confirmPassword);
+const isSelf = computed(() => editId.value === user.value?.id);
+const isNew = computed(() => editId.value === 0);
+const disableSubmit = computed(() => edit.password !== edit.confirmPassword);
 
-const { data, pending, refresh } = await useLazyFetch("/api/staff", {
-  default: () => ({ staff: [] }) as never,
-});
+const { data, pending, refresh } = useLazyFetch("/api/staff");
 
-function validate(state: Partial<typeof editStaff>): FormError[] {
+const columns: TableColumn<Staff>[] = [
+  { accessorKey: "id", header: "#" },
+  { accessorKey: "username", header: "Username" },
+  { accessorKey: "role", header: "Role" },
+  {
+    accessorKey: "isActive",
+    header: "Active",
+    cell: ({ row }) => (row.original.isActive ? "✅" : "❌"),
+  },
+  {
+    accessorKey: "updatedAt",
+    header: "Updated",
+    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
+  },
+];
+
+function validate(state: Partial<typeof edit>): FormError[] {
   if (state.password !== state.confirmPassword)
     return [{ name: "confirmPassword", message: "Passwords do not match" }];
   else return [];
 }
 
 function resetForm() {
-  editStaffId.value = 0;
-  editStaff.username = "";
-  editStaff.password = "";
-  editStaff.confirmPassword = "";
-  editStaff.role = "nurse";
-  editStaff.isActive = true;
+  editId.value = 0;
+  edit.username = "";
+  edit.password = "";
+  edit.confirmPassword = "";
+  edit.role = "nurse";
+  edit.isActive = true;
 }
 
-async function saveStaff() {
-  if (editStaff.password !== editStaff.confirmPassword) {
+async function save({ data }: FormSubmitEvent<typeof edit>) {
+  if (data.password !== data.confirmPassword) {
     toast.add({ title: "Passwords do not match", color: "error" });
     return;
   }
 
   try {
     isLoading.value = true;
-    if (editStaffId.value)
-      await $fetch(`/api/staff/${editStaffId.value}`, {
+
+    if (editId.value)
+      await $fetch(`/api/staff/${editId.value}`, {
         method: "PUT",
         body: {
-          username: editStaff.username,
-          role: editStaff.role,
-          isActive: editStaff.isActive,
-          ...(editStaff.password ? { password: editStaff.password } : {}),
+          username: data.username,
+          role: data.role,
+          isActive: data.isActive,
+          ...(data.password ? { password: data.password } : {}),
         },
       });
-    else await $fetch("/api/staff", { method: "POST", body: editStaff });
+    else await $fetch("/api/staff", { method: "POST", body: data });
+
     refresh();
 
-    toast.add({ title: editStaffId.value ? "Staff updated" : "Staff added", color: "success" });
+    toast.add({ title: editId.value ? "Staff updated" : "Staff added", color: "success" });
 
     showDialog.value = false;
     resetForm();
   } catch (error) {
     toast.add({
-      title: editStaffId.value ? "Could not update staff" : "Could not add staff",
-      description: (error as Error).message,
+      title: editId.value ? "Could not update staff" : "Could not add staff",
+      description: (error as FetchError)?.data.message ?? (error as Error).message,
       color: "error",
     });
   }
   isLoading.value = false;
 }
 
-function addStaff() {
+function add() {
   resetForm();
   showDialog.value = true;
 }
 
-function onSelect(e: Event, row: TableRow<StaffUser>) {
-  editStaffId.value = row.original.id;
-  editStaff.username = row.original.username;
-  editStaff.password = "";
-  editStaff.confirmPassword = "";
-  editStaff.role = row.original.role;
-  editStaff.isActive = row.original.isActive;
+function onSelect(e: Event, row: TableRow<Staff>) {
+  editId.value = row.original.id;
+  edit.username = row.original.username;
+  edit.password = "";
+  edit.confirmPassword = "";
+  edit.role = row.original.role;
+  edit.isActive = row.original.isActive;
   showDialog.value = true;
 }
 
-async function deleteStaff() {
+async function remove() {
   try {
     isLoading.value = true;
-    await $fetch(`/api/staff/${editStaffId.value}`, { method: "DELETE" });
+    await $fetch(`/api/staff/${editId.value}`, { method: "DELETE" });
     refresh();
     toast.add({ title: "Staff deleted", color: "warning" });
     showDialog.value = false;
@@ -145,142 +133,111 @@ async function deleteStaff() {
   } catch (error) {
     toast.add({
       title: "Could not delete staff",
-      description: (error as Error).message,
+      description: (error as FetchError)?.data.message ?? (error as Error).message,
       color: "error",
     });
   }
   isLoading.value = false;
 }
-const emit = defineEmits<{ close: [boolean] }>();
 </script>
 
 <template>
-  <section class="mx-auto flex w-full max-w-6xl flex-col gap-6">
-    <div class="flex items-center gap-4 justify-between">
-      <h1 class="text-2xl font-semibold tracking-normal text-gray-950 dark:text-white">Staff</h1>
+  <div class="flex items-center gap-4 justify-between">
+    <h1 class="text-2xl font-semibold pb-4">Staff</h1>
 
-      <UModal v-model:open="showDialog" size="md" :title="isNew ? 'Add Staff' : 'Edit Staff'">
-        <UButton icon="i-lucide-user-plus" @click="addStaff">Add Staff</UButton>
-        <template #body>
-          <UForm
-            :validate="validate"
-            :state="editStaff"
-            @submit="saveStaff"
-            class="flex flex-col gap-3"
-          >
-            <UFormField label="Username">
-              <UInput
-                v-model="editStaff.username"
-                class="w-full"
-                required
-                minlength="3"
-                maxlength="40"
-                autocomplete="off"
-              />
-            </UFormField>
+    <UModal v-model:open="showDialog" size="md" :title="isNew ? 'Add Staff' : 'Edit Staff'">
+      <UButton icon="i-lucide-user-plus" @click="add">Add Staff</UButton>
+      <template #body>
+        <UForm :validate="validate" :state="edit" @submit="save" class="flex flex-col gap-3">
+          <UFormField label="Username">
+            <UInput v-model="edit.username" class="w-full" required minlength="3" maxlength="40" />
+          </UFormField>
 
-            <UFormField label="Password">
-              <UInput
-                v-model="editStaff.password"
-                class="w-full"
-                :required="isNew || editStaff.confirmPassword.length > 0"
-                minlength="8"
-                maxlength="128"
-                type="password"
-                autocomplete="new-password"
-              />
-            </UFormField>
+          <UFormField label="Password">
+            <UInput
+              v-model="edit.password"
+              class="w-full"
+              :required="isNew || edit.confirmPassword.length > 0"
+              minlength="8"
+              maxlength="128"
+              type="password"
+              autocomplete="new-password"
+            />
+          </UFormField>
 
-            <UFormField label="Confirm Password" name="confirmPassword">
-              <UInput
-                v-model="editStaff.confirmPassword"
-                class="w-full"
-                :required="isNew || editStaff.password.length > 0"
-                minlength="8"
-                maxlength="128"
-                type="password"
-                autocomplete="new-password"
-              />
-            </UFormField>
+          <UFormField label="Confirm Password" name="confirmPassword">
+            <UInput
+              v-model="edit.confirmPassword"
+              class="w-full"
+              :required="isNew || edit.password.length > 0"
+              minlength="8"
+              maxlength="128"
+              type="password"
+              autocomplete="new-password"
+            />
+          </UFormField>
 
-            <UFormField label="Role">
-              <select
-                v-model="editStaff.role"
-                class="h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-950 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                :disabled="isSelf"
-              >
-                <option v-for="option in roleOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-            </UFormField>
+          <UFormField label="Role">
+            <USelect v-model="edit.role" :items="roles" class="w-full" />
+          </UFormField>
 
-            <label
-              class="flex min-h-16 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+          <UCheckbox label="Active" v-model="edit.isActive" :disabled="isSelf" class="py-2" />
+
+          <div class="flex items-end justify-between">
+            <UButton
+              type="submit"
+              :icon="isNew ? 'i-lucide-user-plus' : 'i-lucide-user-check'"
+              :loading="isLoading"
+              :disabled="isLoading || disableSubmit"
             >
-              <input
-                v-model="editStaff.isActive"
-                type="checkbox"
-                class="size-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                :disabled="isSelf"
-              />
-              Active
-            </label>
+              {{ isNew ? "Add" : "Save" }}
+            </UButton>
 
-            <div class="flex items-end justify-between">
+            <UModal size="sm" title="Delete Staff">
               <UButton
-                type="submit"
-                :icon="isNew ? 'i-lucide-user-plus' : 'i-lucide-user-check'"
+                v-if="!isNew && !isSelf"
+                type="button"
+                icon="i-lucide-user-minus"
+                color="error"
                 :loading="isLoading"
-                :disabled="isLoading || disableSubmit"
+                :disabled="isLoading"
               >
-                {{ isNew ? "Add" : "Save" }}
+                Delete
               </UButton>
-
-              <UModal size="sm" title="Delete Staff">
+              <template #body>
+                Are you sure you want to delete staff member &ldquo;{{ edit.username }}&rdquo;?
+              </template>
+              <template #footer="{ close }">
                 <UButton
-                  v-if="!isNew && !isSelf"
                   type="button"
-                  icon="i-lucide-user-minus"
                   color="error"
+                  class="px-4"
                   :loading="isLoading"
                   :disabled="isLoading"
+                  @click="remove"
                 >
-                  Delete
+                  Yes
                 </UButton>
-                <template #body>
-                  Are you sure you want to delete staff member &ldquo;{{
-                    editStaff.username
-                  }}&rdquo;?
-                </template>
-                <template #footer="{ close }">
-                  <UButton
-                    type="button"
-                    color="error"
-                    class="px-4"
-                    :loading="isLoading"
-                    :disabled="isLoading"
-                    @click="deleteStaff"
-                  >
-                    Yes
-                  </UButton>
-                  <UButton
-                    type="button"
-                    class="ml-4 px-5"
-                    :loading="isLoading"
-                    :disabled="isLoading"
-                    @click="close"
-                  >
-                    No
-                  </UButton>
-                </template>
-              </UModal>
-            </div>
-          </UForm>
-        </template>
-      </UModal>
-    </div>
+                <UButton
+                  type="button"
+                  class="ml-4 px-5"
+                  :loading="isLoading"
+                  :disabled="isLoading"
+                  @click="close"
+                >
+                  No
+                </UButton>
+              </template>
+            </UModal>
+          </div>
+        </UForm>
+      </template>
+    </UModal>
+  </div>
 
-    <UTable :data="data" :columns="columns" :loading="pending" @select="onSelect" />
-  </section>
+  <UTable :data="data" :columns="columns" :loading="pending" @select="onSelect">
+    <template #updatedAt-cell="{ row }">
+      <NuxtTime :datetime="row.original.updatedAt" date-style="short" time-style="short" />
+    </template>
+  </UTable>
 </template>

@@ -1,7 +1,7 @@
 CREATE TABLE `blacklist` (
 	`phone` text,
 	`telegram` text,
-	`reason` text
+	`reason` text DEFAULT '' NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `blacklist_phone_unique` ON `blacklist` (`phone`);--> statement-breakpoint
@@ -10,12 +10,12 @@ CREATE TABLE `blood_requests` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`user_id` integer,
 	`blood_type` text NOT NULL,
-	`location` text,
-	`island` text,
+	`location` text DEFAULT '' NOT NULL,
+	`island` text DEFAULT '' NOT NULL,
 	`units_needed` integer DEFAULT 1 NOT NULL,
 	`urgent` integer DEFAULT false NOT NULL,
 	`status` text DEFAULT 'open' NOT NULL,
-	`notes` text,
+	`notes` text DEFAULT '' NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
@@ -29,7 +29,7 @@ CREATE TABLE `donations` (
 	`request_id` integer,
 	`recorded_by_staff_id` integer,
 	`donated_at` integer DEFAULT (unixepoch()) NOT NULL,
-	`notes` text,
+	`notes` text DEFAULT '' NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`donor_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`request_id`) REFERENCES `blood_requests`(`id`) ON UPDATE no action ON DELETE no action,
@@ -45,8 +45,8 @@ CREATE TABLE `donor_responses` (
 	`request_id` integer NOT NULL,
 	`donor_id` integer NOT NULL,
 	`status` text DEFAULT 'contacted' NOT NULL,
-	`responded_at` text,
-	`notes` text,
+	`responded_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`notes` text DEFAULT '' NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
 	FOREIGN KEY (`request_id`) REFERENCES `blood_requests`(`id`) ON UPDATE no action ON DELETE no action,
@@ -76,16 +76,23 @@ CREATE TABLE `users` (
 	`telegram_username` text,
 	`name` text NOT NULL,
 	`phone` text,
-	`blood_type` text NOT NULL,
-	`island` text,
+	`blood_type` text DEFAULT '' NOT NULL,
+	`nid` text,
+	`sex` text NOT NULL,
+	`dob` integer NOT NULL,
+	`address` text DEFAULT '' NOT NULL,
+	`island` text DEFAULT '' NOT NULL,
 	`is_available` integer DEFAULT false NOT NULL,
 	`last_donated_at` integer DEFAULT 0 NOT NULL,
-	`notes` text,
+	`notes` text DEFAULT '' NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_telegram_user_id_unique` ON `users` (`telegram_user_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `users_telegram_username_unique` ON `users` (`telegram_username`);--> statement-breakpoint
 CREATE UNIQUE INDEX `users_phone_unique` ON `users` (`phone`);--> statement-breakpoint
+CREATE UNIQUE INDEX `users_nid_unique` ON `users` (`nid`);--> statement-breakpoint
 CREATE INDEX `users_blood_type_idx` ON `users` (`blood_type`);--> statement-breakpoint
-CREATE INDEX `users_is_available_idx` ON `users` (`is_available`);
+CREATE INDEX `users_is_available_idx` ON `users` (`is_available`);--> statement-breakpoint
+CREATE INDEX `users_last_donated_at_idx` ON `users` (`last_donated_at`);
