@@ -97,4 +97,5 @@ CREATE INDEX `users_blood_type_idx` ON `users` (`blood_type`);--> statement-brea
 CREATE INDEX `users_is_available_idx` ON `users` (`is_available`);--> statement-breakpoint
 CREATE INDEX `users_last_donated_at_idx` ON `users` (`last_donated_at`);--> statement-breakpoint
 
+-- password: leyrobot
 INSERT INTO staff (username, password, role) VALUES ('naifaru','$scrypt$n=16384,r=8,p=1$7hws9pRPSllM1349/xAMew$APtY2rOu/Z4MiWQKVLOUwaYAqrm5muHBxId6hNgug4sPmldK+QmSrcEdMssPQk6iJwyExR39wbr8H4s1qBnmRg','admin');
