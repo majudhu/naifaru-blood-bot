@@ -38,7 +38,7 @@ const columns: TableColumn<User>[] = [
 ];
 
 const bloodTypes: SelectItem[] = Array.from(bloodTypeValues);
-bloodTypes[0] = "-";
+bloodTypes[0] = "All";
 const sexes: SelectItem[] = [
   { label: "Male", value: "m" },
   { label: "Female", value: "f" },
@@ -46,7 +46,7 @@ const sexes: SelectItem[] = [
 
 const page = ref(1);
 const search = ref("");
-const type = ref("");
+const type = ref("All");
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editId = ref(0);

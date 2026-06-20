@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery<{
     page?: string;
     search?: string;
-    type?: (typeof bloodTypeValues)[number] | "-";
+    type?: (typeof bloodTypeValues)[number] | "All";
   }>(event);
 
   const offset = ((+query.page! || 1) - 1) * limit;
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
           search
             ? or(like(schema.users.name, `%${search}%`), like(schema.users.phone, search))
             : undefined,
-          query.type && query.type !== "-" ? eq(schema.users.bloodType, query.type) : undefined,
+          query.type && query.type !== "All" ? eq(schema.users.bloodType, query.type) : undefined,
         ),
       ),
     db.select({ count: count() }).from(schema.users),

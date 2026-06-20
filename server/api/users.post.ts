@@ -36,7 +36,13 @@ export const CreateuserParser = v.parser(
     address: v.string(),
     island: v.string(),
     isAvailable: v.optional(v.boolean(), false),
-    lastDonatedAt: v.optional(v.pipe(v.string(), v.toDate())),
+    lastDonatedAt: v.optional(
+      v.pipe(
+        v.string(),
+        v.transform((s) => s || null),
+        v.toDate(),
+      ),
+    ),
     notes: v.optional(v.string(), ""),
   }),
 );
