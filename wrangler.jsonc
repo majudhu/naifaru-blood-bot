@@ -21,7 +21,7 @@
     {
       "binding": "DB",
       "database_name": "naifaru-blood-bot",
-      "database_id": "local",
+      "database_id": "ab643673-c122-4093-a488-527c48934b5d",
       "migrations_dir": "drizzle",
     },
   ],
