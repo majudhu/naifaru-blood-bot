@@ -192,5 +192,5 @@ async function save({ data }: FormSubmitEvent<RequestEdit>) {
     </template>
   </UTable>
 
-  <UPagination v-model:page="page" :items-per-page="20" :total="data?.total" />
+  <UPagination class="py-4" v-model:page="page" :items-per-page="20" :total="data?.total" />
 </template>

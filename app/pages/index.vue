@@ -90,16 +90,22 @@ function resetForm() {
   view.value = undefined;
 }
 
-async function save({ data }: FormSubmitEvent<UserEdit>) {
+async function save(event: FormSubmitEvent<UserEdit>) {
   try {
     isLoading.value = true;
 
-    if (editId.value) await $fetch(`/api/users/${editId.value}`, { method: "PUT", body: data });
-    else await $fetch("/api/users", { method: "POST", body: data });
+    if (editId.value)
+      await $fetch(`/api/users/${editId.value}`, { method: "PUT", body: event.data });
+    else await $fetch("/api/users", { method: "POST", body: event.data });
 
     refresh();
 
-    toast.add({ title: editId.value ? "User updated" : "User added", color: "success" });
+    page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
+
+    toast.add({
+      title: editId.value ? "User updated" : "User added",
+      color: "success",
+    });
 
     showDialog.value = false;
     resetForm();
@@ -272,5 +278,5 @@ function onSelect(e: Event, row: TableRow<User>) {
     </template>
   </UTable>
 
-  <UPagination v-model:page="page" :items-per-page="20" :total="data?.total" />
+  <UPagination class="py-4" v-model:page="page" :items-per-page="20" :total="data?.total" />
 </template>
