@@ -4,7 +4,6 @@ import { FetchError } from "ofetch";
 
 definePageMeta({ layout: false });
 
-const toast = useToast();
 const { loggedIn, fetch: refreshSession } = useUserSession();
 
 if (loggedIn.value) navigateTo("/");
