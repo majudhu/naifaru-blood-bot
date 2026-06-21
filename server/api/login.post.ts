@@ -23,8 +23,5 @@ export default defineEventHandler(async (event) => {
     return null;
   }
 
-  throw createError({
-    status: 401,
-    message: "Bad credentials",
-  });
+  throw createError({ status: 401, message: "Bad credentials" });
 });

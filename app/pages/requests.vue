@@ -5,7 +5,6 @@ import { FetchError } from "ofetch";
 type BloodRequest = NonNullable<typeof data.value>["data"][number];
 type RequestEdit = Omit<BloodRequest, "id" | "createdAt" | "updatedAt">;
 
-const route = useRoute();
 const toast = useToast();
 
 const bloodTypes: SelectItem[] = Array.from(bloodTypeValues);
@@ -22,7 +21,7 @@ const page = ref(1);
 const search = ref("");
 const type = ref("All");
 const status = ref("all");
-const priority = ref(route.query.priority === "1");
+const priority = ref(false);
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editId = ref(0);
