@@ -26,9 +26,8 @@ async function onSubmit(e: FormSubmitEvent<typeof state>) {
       statusCode === 401
         ? "Incorrect username or password."
         : "Unable to log in right now. Please try again.";
-  } finally {
-    isLoading.value = false;
   }
+  isLoading.value = false;
 }
 </script>
 
