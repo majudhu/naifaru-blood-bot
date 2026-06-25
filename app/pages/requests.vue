@@ -6,6 +6,7 @@ type BloodRequest = NonNullable<typeof data.value>["data"][number];
 type RequestEdit = Omit<BloodRequest, "id" | "createdAt" | "updatedAt">;
 
 const toast = useToast();
+const { query } = useRoute();
 
 const bloodTypes: SelectItem[] = Array.from(bloodTypeValues);
 bloodTypes[0] = "All";
@@ -21,7 +22,7 @@ const page = ref(1);
 const search = ref("");
 const type = ref("All");
 const status = ref("all");
-const priority = ref(false);
+const priority = ref(query.priority === "1");
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editId = ref(0);

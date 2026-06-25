@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FormSubmitEvent, SelectItem, TableColumn, TableRow } from "@nuxt/ui";
+import { refDebounced } from "@vueuse/core";
 import { FetchError } from "ofetch";
 
 type User = NonNullable<typeof data.value>["data"][number];
@@ -9,6 +10,7 @@ type UserEdit = Omit<
 >;
 
 const toast = useToast();
+const { user } = useUserSession();
 
 const dayms = 1000 * 60 * 60 * 24;
 const epochString = "1970-01-01T00:00:00.000Z";
@@ -16,6 +18,16 @@ const epochString = "1970-01-01T00:00:00.000Z";
 const columns: TableColumn<User>[] = [
   { accessorKey: "id", header: "#" },
   { accessorKey: "name", header: "Name" },
+  {
+    accessorKey: "phone",
+    header: "Phone",
+    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
+  },
+  {
+    accessorKey: "nid",
+    header: "NID",
+    meta: { class: { th: "hidden md:table-cell", td: "hidden md:table-cell" } },
+  },
   { accessorKey: "bloodType", header: "Blood Type" },
   {
     accessorKey: "lastDonatedAt",
@@ -24,16 +36,15 @@ const columns: TableColumn<User>[] = [
   },
   {
     accessorKey: "isAvailable",
-    header: "Available",
+    header: "Donor",
     cell({ row }) {
-      const days = Math.floor(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / dayms);
-      return `${row.original.isAvailable ? `${days < 1 ? "✅" : `⏳ ${days} days`}` : "-"}`;
+      const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / dayms);
+      return row.original.isAvailable
+        ? days < 1
+          ? h("span", { class: "text-lg leading-0" }, "✅")
+          : `⏳ ${days} days`
+        : "-";
     },
-  },
-  {
-    accessorKey: "updatedAt",
-    header: "Updated",
-    meta: { class: { th: "hidden md:table-cell", td: "hidden md:table-cell" } },
   },
 ];
 
@@ -44,9 +55,19 @@ const sexes: SelectItem[] = [
   { label: "Female", value: "f" },
 ];
 
+const donorStatuses = [
+  { label: "Ready now", value: "ready" },
+  { label: "Cooldown", value: "cooldown" },
+  { label: "All donors", value: "donors" },
+  { label: "Non-donors", value: "non-donors" },
+  { label: "All users", value: "all" },
+];
+
 const page = ref(1);
 const search = ref("");
+const searchDebounced = refDebounced(search, 300);
 const type = ref("All");
+const donorStatus = ref("ready");
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editId = ref(0);
@@ -56,7 +77,7 @@ const edit = reactive<UserEdit>({
   phone: "",
   bloodType: "",
   nid: "",
-  sex: "m",
+  sex: "",
   dob: new Date().toLocaleDateString("en-CA"),
   address: "",
   island: "",
@@ -64,12 +85,14 @@ const edit = reactive<UserEdit>({
   lastDonatedAt: "",
   notes: "",
 });
+const expandDetails = ref(false);
 const view = shallowRef<User>();
 
 const isNew = computed(() => editId.value === 0);
 
+const dashboard = await useLazyFetch("/api/dashboard");
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
-  query: { page, search, type },
+  query: { page, search: searchDebounced, type, status: donorStatus },
 });
 
 function resetForm() {
@@ -79,7 +102,7 @@ function resetForm() {
   edit.phone = "";
   edit.bloodType = "";
   edit.nid = "";
-  edit.sex = "m";
+  edit.sex = "";
   edit.dob = new Date().toLocaleDateString("en-CA");
   edit.address = "";
   edit.island = "";
@@ -88,6 +111,7 @@ function resetForm() {
   edit.notes = "";
   edit.phone = "";
   view.value = undefined;
+  expandDetails.value = false;
 }
 
 async function save(event: FormSubmitEvent<UserEdit>) {
@@ -99,8 +123,9 @@ async function save(event: FormSubmitEvent<UserEdit>) {
     else await $fetch("/api/users", { method: "POST", body: event.data });
 
     refresh();
+    dashboard.refresh();
 
-    page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
+    if (!editId.value) page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
 
     toast.add({
       title: editId.value ? "User updated" : "User added",
@@ -121,6 +146,7 @@ async function save(event: FormSubmitEvent<UserEdit>) {
 
 function add() {
   resetForm();
+  expandDetails.value = true;
   showDialog.value = true;
 }
 
@@ -142,8 +168,17 @@ function onSelect(e: Event, row: TableRow<User>) {
       : new Date(row.original.lastDonatedAt).toLocaleDateString("en-CA");
   edit.notes = row.original.notes;
   view.value = row.original;
+  expandDetails.value = false;
   showDialog.value = true;
 }
+
+const lastDonated = computed(() => {
+  if (!edit.lastDonatedAt || edit.lastDonatedAt === epochString) return "Last donated: -";
+  const days = Math.ceil((Date.now() - Date.parse(edit.lastDonatedAt)) / dayms);
+  if (days < 100) return `Last donated ${days} days ago`;
+  if (days < 365) return `Last donated ${Math.floor(days / 30)} months ago`;
+  else return `Last donated ${Math.floor(days / 365)} years ago`;
+});
 </script>
 
 <template>
@@ -151,18 +186,61 @@ function onSelect(e: Event, row: TableRow<User>) {
 
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
     <NuxtLink to="/requests">
-      <UCard :ui="{ title: 'text-2xl' }" title="0" description="Active Requests" />
+      <UCard
+        :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
+        title="0"
+        description="Active Requests"
+      />
     </NuxtLink>
     <NuxtLink to="/requests?priority=1">
-      <UCard :ui="{ title: 'text-2xl' }" title="0" description="Priority Requests" />
+      <UCard
+        :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
+        title="0"
+        description="Priority Requests"
+      />
     </NuxtLink>
-    <UCard :ui="{ title: 'text-2xl' }" :title="String(data?.donors)" description="Total Donors" />
-    <UCard :ui="{ title: 'text-2xl' }" :title="String(data?.new)" description="New this month" />
+    <UCard
+      :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
+      :title="String(dashboard.data?.value?.donors)"
+      description="Total Donors"
+    />
+    <UCard
+      :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
+      :title="String(dashboard.data?.value?.new)"
+      description="New this month"
+    />
+  </div>
+
+  <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
+    <UButton
+      color="neutral"
+      variant="subtle"
+      :label="`Ready: ${dashboard.data?.value?.ready}`"
+      size="md"
+      class="font-semibold"
+      @click="
+        donorStatus = 'ready';
+        type = 'All';
+      "
+    />
+    <UButton
+      v-if="dashboard.data?.value?.ready"
+      v-for="group in dashboard.data?.value?.groups"
+      color="neutral"
+      variant="subtle"
+      size="md"
+      @click="type = group.type"
+    >
+      <strong>{{ group.type }}: {{ group.ready }}</strong> / {{ group.total }}
+    </UButton>
   </div>
 
   <div class="flex items-center flex-wrap gap-4">
-    <UInput v-model="search" placeholder="Search" />
-    <USelect v-model="type" :items="bloodTypes" class="w-20" />
+    <UInput v-model="search" placeholder="Search" @change="page = 1" />
+    <USelect v-model="type" :items="bloodTypes" class="w-20" @change="page = 1" />
+    <USelect v-model="donorStatus" :items="donorStatuses" class="w-32" @change="page = 1" />
+
+    <small class="text-muted text-sm">{{ data?.total }} Users</small>
 
     <UModal
       v-model:open="showDialog"
@@ -194,30 +272,28 @@ function onSelect(e: Event, row: TableRow<User>) {
               Today
             </UButton>
 
-            <UCheckbox v-model="edit.isAvailable" label="Available" class="pb-2" />
+            <UCheckbox v-model="edit.isAvailable" label="Donor" class="pb-2" />
           </div>
+
+          <UFormField label="Phone">
+            <UInput v-model="edit.phone" class="w-full" minlength="7" />
+          </UFormField>
+
+          <UFormField label="National ID">
+            <UInput v-model="edit.nid" class="w-full" minlength="7" maxlength="7" />
+          </UFormField>
+
+          <small class="flex flex-wrap md:grid-cols-2">
+            {{ lastDonated }} &emsp; Age:
+            {{ Math.floor((Date.now() - Date.parse(edit.dob)) / 365 / dayms) }} years
+          </small>
 
           <UCollapsible
             class="md:col-span-2"
-            :default-open="isNew"
+            v-model:open="expandDetails"
             :ui="{ content: 'grid md:grid-cols-2 gap-3' }"
           >
-            <UButton
-              label="Expand Details"
-              color="neutral"
-              variant="subtle"
-              class="block ml-auto"
-              :class="isNew ? 'hidden' : ''"
-            />
             <template #content>
-              <UFormField label="Phone">
-                <UInput v-model="edit.phone" class="w-full" minlength="7" />
-              </UFormField>
-
-              <UFormField label="National ID">
-                <UInput v-model="edit.nid" class="w-full" minlength="7" maxlength="7" />
-              </UFormField>
-
               <UFormField label="Sex">
                 <USelect v-model="edit.sex" :items="sexes" class="w-full" />
               </UFormField>
@@ -263,18 +339,30 @@ function onSelect(e: Event, row: TableRow<User>) {
           >
             {{ isNew ? "Add" : "Save" }}
           </UButton>
+          <UButton
+            v-if="user?.role === 'admin'"
+            :label="`${expandDetails ? 'Hide' : 'Show'} Details`"
+            color="neutral"
+            variant="subtle"
+            class="justify-center"
+            :class="isNew ? 'hidden' : ''"
+            @click="expandDetails = !expandDetails"
+          />
         </UForm>
       </template>
     </UModal>
   </div>
 
-  <UTable :data="data?.data" :columns="columns" :loading="pending" @select="onSelect">
+  <UTable
+    :data="data?.data"
+    :columns="columns"
+    :loading="pending"
+    @select="onSelect"
+    cellpadding=""
+  >
     <template #lastDonatedAt-cell="{ row }">
       <span v-if="row.original.lastDonatedAt === epochString">-</span>
       <NuxtTime v-else :datetime="row.original.lastDonatedAt" date-style="short" />
-    </template>
-    <template #updatedAt-cell="{ row }">
-      <NuxtTime :datetime="row.original.updatedAt" date-style="short" time-style="short" />
     </template>
   </UTable>
 

@@ -22,6 +22,8 @@ export default defineNuxtConfig({
 
   css: ["~/assets/css/main.css"],
 
+  ui: { colorMode: false },
+
   icon: {
     mode: "css",
     cssLayer: "base",

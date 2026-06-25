@@ -31,7 +31,7 @@ export const CreateuserParser = v.parser(
         v.pipe(v.string(), v.length(7)),
       ]),
     ),
-    sex: v.picklist(["m", "f"]),
+    sex: v.picklist(["", "m", "f"]),
     dob: v.pipe(v.string(), v.toDate()),
     address: v.string(),
     island: v.string(),

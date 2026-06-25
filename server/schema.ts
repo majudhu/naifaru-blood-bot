@@ -26,7 +26,7 @@ export const users = sqliteTable(
     phone: text("phone").unique(),
     bloodType: text("blood_type", { enum: bloodTypeValues }).notNull().default(""),
     nid: text("nid").unique(),
-    sex: text("sex", { enum: ["m", "f"] }).notNull(),
+    sex: text("sex", { enum: ["", "m", "f"] }).notNull(),
     dob: integer("dob", { mode: "timestamp" }).notNull(),
     address: text("address").notNull().default(""),
     island: text("island").notNull().default(""),
