@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   const result = await db
     .update(schema.users)
-    .set({ ...body, updatedAt: sql`CURRENT_TIMESTAMP` })
+    .set({ ...body, updatedAt: sql`unixepoch()` })
     .where(eq(schema.users.id, userId));
 
   if (result.meta.changes === 0)

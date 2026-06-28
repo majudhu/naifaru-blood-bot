@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
     .set({
       ...body,
       password: body.password ? await hashPassword(body.password) : undefined,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
+      updatedAt: sql`unixepoch()`,
     })
     .where(eq(schema.staff.id, staffId));
 
