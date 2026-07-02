@@ -1,21 +1,13 @@
 <script setup lang="ts">
 import type { FormSubmitEvent, SelectItem, TableColumn, TableRow } from "@nuxt/ui";
 import { refDebounced } from "@vueuse/core";
+import type { InternalApi } from "nitropack";
 import { FetchError } from "ofetch";
+import type { User as DbUser } from "~~/server/schema";
 
-type User = NonNullable<typeof data.value>["data"][number];
-type UserEdit = Omit<
-  { [K in keyof User]-?: NonNullable<User[K]> },
-  "id" | "telegramUserId" | "createdAt" | "updatedAt"
->;
+type UserRow = NonNullable<typeof data.value>["data"][number];
 
-const toast = useToast();
-const { user } = useUserSession();
-
-const dayms = 1000 * 60 * 60 * 24;
-const epochString = "1970-01-01T00:00:00.000Z";
-
-const columns: TableColumn<User>[] = [
+const columns: TableColumn<UserRow>[] = [
   { accessorKey: "id", header: "#" },
   { accessorKey: "name", header: "Name" },
   {
@@ -38,7 +30,7 @@ const columns: TableColumn<User>[] = [
     accessorKey: "isAvailable",
     header: "Donor",
     cell({ row }) {
-      const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / dayms);
+      const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / DAY_MS);
       return row.original.isAvailable
         ? days < 1
           ? h("span", { class: "text-lg leading-0" }, "✅")
@@ -63,6 +55,9 @@ const donorStatuses = [
   { label: "All users", value: "all" },
 ];
 
+const toast = useToast();
+const { user } = useUserSession();
+
 const page = ref(1);
 const search = ref("");
 const searchDebounced = refDebounced(search, 300);
@@ -70,65 +65,62 @@ const type = ref("All");
 const donorStatus = ref("ready");
 const showDialog = ref(false);
 const isLoading = ref(false);
-const editId = ref(0);
-const edit = reactive<UserEdit>({
-  name: "",
-  telegramUsername: "",
-  phone: "",
-  bloodType: "",
-  nid: "",
-  sex: "",
-  dob: new Date().toLocaleDateString("en-CA"),
-  address: "",
-  island: "",
-  isAvailable: false,
-  lastDonatedAt: "",
-  notes: "",
-});
+const editDetails = shallowRef<Partial<InternalApi["/api/users/:id"]["get"]>>({});
 const expandDetails = ref(false);
-const view = shallowRef<User>();
 
-const isNew = computed(() => editId.value === 0);
+const isNew = computed(() => !editDetails.value.id);
 
 const dashboard = await useLazyFetch("/api/dashboard");
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
   query: { page, search: searchDebounced, type, status: donorStatus },
 });
 
+const BLANK_USER = {
+  name: "",
+  telegramUsername: "",
+  phone: "",
+  bloodType: "" as (typeof bloodTypeValues)[number],
+  nid: "",
+  sex: "" as DbUser["sex"],
+  dob: new Date().toLocaleDateString("en-CA"),
+  address: "",
+  island: "",
+  isAvailable: false,
+  lastDonatedAt: "",
+  notes: "",
+};
+
+const edit = reactive({ ...BLANK_USER });
+
 function resetForm() {
-  editId.value = 0;
-  edit.name = "";
-  edit.telegramUsername = "";
-  edit.phone = "";
-  edit.bloodType = "";
-  edit.nid = "";
-  edit.sex = "";
-  edit.dob = new Date().toLocaleDateString("en-CA");
-  edit.address = "";
-  edit.island = "";
-  edit.isAvailable = false;
-  edit.lastDonatedAt = "";
-  edit.notes = "";
-  edit.phone = "";
-  view.value = undefined;
-  expandDetails.value = false;
+  editDetails.value = {};
+  isLoading.value = false;
+  Object.assign(edit, BLANK_USER);
+  isLoading.value = false;
 }
 
-async function save(event: FormSubmitEvent<UserEdit>) {
+const lastDonated = computed(() => {
+  if (!edit.lastDonatedAt) return "Last donated: -";
+  const days = Math.ceil((Date.now() - Date.parse(edit.lastDonatedAt)) / DAY_MS);
+  if (days < 100) return `Last donated ${days} days ago`;
+  if (days < 365) return `Last donated ${Math.floor(days / 30)} months ago`;
+  else return `Last donated ${Math.floor(days / 365)} years ago`;
+});
+
+async function save(event: FormSubmitEvent<typeof edit>) {
   try {
     isLoading.value = true;
 
-    if (editId.value)
-      await $fetch(`/api/users/${editId.value}`, { method: "PUT", body: event.data });
-    else await $fetch("/api/users", { method: "POST", body: event.data });
+    if (isNew.value) await $fetch("/api/users", { method: "POST", body: event.data });
+    else await $fetch(`/api/users/${editDetails.value.id}`, { method: "PUT", body: event.data });
 
     refresh();
     dashboard.refresh();
 
-    if (!editId.value) page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
+    if (isNew.value) page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
 
     toast.add({
-      title: editId.value ? "User updated" : "User added",
+      title: isNew.value ? "User added" : "User updated",
       color: "success",
     });
 
@@ -136,7 +128,7 @@ async function save(event: FormSubmitEvent<UserEdit>) {
     resetForm();
   } catch (error) {
     toast.add({
-      title: editId.value ? "Could not update User" : "Could not add User",
+      title: isNew.value ? "Could not add User" : "Could not update User",
       description: (error as FetchError)?.data.message ?? (error as Error).message,
       color: "error",
     });
@@ -150,35 +142,40 @@ function add() {
   showDialog.value = true;
 }
 
-function onSelect(e: Event, row: TableRow<User>) {
-  editId.value = row.original.id;
-  edit.name = row.original.name;
-  edit.telegramUsername = row.original.telegramUsername || "";
-  edit.phone = row.original.phone || "";
-  edit.bloodType = row.original.bloodType;
-  edit.nid = row.original.nid || "";
-  edit.sex = row.original.sex;
-  edit.dob = new Date(row.original.dob).toLocaleDateString("en-CA");
-  edit.address = row.original.address;
-  edit.island = row.original.island;
-  edit.isAvailable = row.original.isAvailable;
-  edit.lastDonatedAt =
-    row.original.lastDonatedAt === epochString
-      ? ""
-      : new Date(row.original.lastDonatedAt).toLocaleDateString("en-CA");
-  edit.notes = row.original.notes;
-  view.value = row.original;
-  expandDetails.value = false;
+async function onSelect(_event: Event, row: TableRow<UserRow>) {
+  editDetails.value = row.original;
+  Object.assign(edit, {
+    ...row.original,
+    lastDonatedAt:
+      row.original.lastDonatedAt === EPOCH_STRING
+        ? ""
+        : row.original.lastDonatedAt.substring(0, 10),
+  });
   showDialog.value = true;
-}
+  isLoading.value = true;
 
-const lastDonated = computed(() => {
-  if (!edit.lastDonatedAt || edit.lastDonatedAt === epochString) return "Last donated: -";
-  const days = Math.ceil((Date.now() - Date.parse(edit.lastDonatedAt)) / dayms);
-  if (days < 100) return `Last donated ${days} days ago`;
-  if (days < 365) return `Last donated ${Math.floor(days / 30)} months ago`;
-  else return `Last donated ${Math.floor(days / 365)} years ago`;
-});
+  try {
+    const user = await $fetch(`/api/users/${row.original.id}`);
+    if (editDetails.value.id === row.original.id) {
+      Object.assign(edit, {
+        ...user,
+        updatedAt: undefined,
+        createdAt: undefined,
+        lastDonatedAt:
+          user.lastDonatedAt === EPOCH_STRING ? "" : user.lastDonatedAt.substring(0, 10),
+        dob: user.dob.substring(0, 10),
+      });
+      editDetails.value = user;
+      isLoading.value = false; // disable loading and enable submit only if the user fetch is successful
+    }
+  } catch (error) {
+    toast.add({
+      title: "Could not load user details",
+      description: (error as FetchError)?.data?.message ?? (error as Error).message,
+      color: "error",
+    });
+  }
+}
 </script>
 
 <template>
@@ -229,7 +226,7 @@ const lastDonated = computed(() => {
       color="neutral"
       variant="subtle"
       size="md"
-      @click="type = group.type"
+      @click="void (type = group.type)"
     >
       <strong>{{ group.type }}: {{ group.ready }}</strong> / {{ group.total }}
     </UButton>
@@ -267,7 +264,7 @@ const lastDonated = computed(() => {
           <div class="flex items-end justify-between gap-4">
             <UButton
               color="secondary"
-              @click="edit.lastDonatedAt = new Date().toLocaleDateString('en-CA')"
+              @click="void (edit.lastDonatedAt = new Date().toLocaleDateString('en-CA'))"
             >
               Today
             </UButton>
@@ -285,7 +282,7 @@ const lastDonated = computed(() => {
 
           <small class="flex flex-wrap md:grid-cols-2">
             {{ lastDonated }} &emsp; Age:
-            {{ Math.floor((Date.now() - Date.parse(edit.dob)) / 365 / dayms) }} years
+            {{ Math.floor((Date.now() - Date.parse(edit.dob)) / 365 / DAY_MS) }} years
           </small>
 
           <UCollapsible
@@ -311,7 +308,7 @@ const lastDonated = computed(() => {
               </UFormField>
 
               <UFormField label="Telegram User ID" class="opacity-50" v-if="!isNew">
-                <UInput :value="view?.telegramUserId" class="w-full" readonly />
+                <UInput :value="editDetails.telegramUserId" class="w-full" readonly />
               </UFormField>
 
               <UFormField label="Telegram Username">
@@ -322,11 +319,15 @@ const lastDonated = computed(() => {
                 <UTextarea v-model="edit.notes" class="w-full" />
               </UFormField>
 
-              <small v-if="view" class="md:col-span-2 text-muted">
+              <small v-if="editDetails.createdAt" class="md:col-span-2 text-muted">
                 Created:
-                <NuxtTime :datetime="view.updatedAt" date-style="short" time-style="short" />
+                <NuxtTime :datetime="editDetails.createdAt" date-style="short" time-style="short" />
                 &emsp; Updated:
-                <NuxtTime :datetime="view.updatedAt" date-style="short" time-style="short" />
+                <NuxtTime
+                  :datetime="editDetails.updatedAt!"
+                  date-style="short"
+                  time-style="short"
+                />
               </small>
             </template>
           </UCollapsible>
@@ -340,13 +341,13 @@ const lastDonated = computed(() => {
             {{ isNew ? "Add" : "Save" }}
           </UButton>
           <UButton
-            v-if="user?.role === 'admin'"
+            v-if="user?.role === 'admin' && !isNew"
             :label="`${expandDetails ? 'Hide' : 'Show'} Details`"
             color="neutral"
             variant="subtle"
             class="justify-center"
             :class="isNew ? 'hidden' : ''"
-            @click="expandDetails = !expandDetails"
+            @click="void (expandDetails = !expandDetails)"
           />
         </UForm>
       </template>
@@ -361,7 +362,7 @@ const lastDonated = computed(() => {
     cellpadding=""
   >
     <template #lastDonatedAt-cell="{ row }">
-      <span v-if="row.original.lastDonatedAt === epochString">-</span>
+      <span v-if="row.original.lastDonatedAt === EPOCH_STRING">-</span>
       <NuxtTime v-else :datetime="row.original.lastDonatedAt" date-style="short" />
     </template>
   </UTable>

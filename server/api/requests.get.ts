@@ -19,7 +19,16 @@ export default defineEventHandler(async (event) => {
 
   const [data, [total]] = await Promise.all([
     db
-      .select()
+      .select({
+        id: schema.bloodRequests.id,
+        bloodType: schema.bloodRequests.bloodType,
+        location: schema.bloodRequests.location,
+        island: schema.bloodRequests.island,
+        unitsNeeded: schema.bloodRequests.unitsNeeded,
+        urgent: schema.bloodRequests.urgent,
+        status: schema.bloodRequests.status,
+        updatedAt: schema.bloodRequests.updatedAt,
+      })
       .from(schema.bloodRequests)
       .where(
         and(

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { FormSubmitEvent, SelectItem, TableColumn, TableRow } from "@nuxt/ui";
+import type { InternalApi } from "nitropack";
 import { FetchError } from "ofetch";
+import type { BloodRequest as DbBloodRequest } from "~~/server/schema";
 
-type BloodRequest = NonNullable<typeof data.value>["data"][number];
-type RequestEdit = Omit<BloodRequest, "id" | "createdAt" | "updatedAt">;
+type RequestRow = NonNullable<typeof data.value>["data"][number];
+type RequestDetails = InternalApi["/api/requests/:id"]["get"];
 
 const toast = useToast();
 const { query } = useRoute();
@@ -25,25 +27,15 @@ const status = ref("all");
 const priority = ref(query.priority === "1");
 const showDialog = ref(false);
 const isLoading = ref(false);
-const editId = ref(0);
-const edit = reactive<RequestEdit>({
-  userId: null,
-  bloodType: "",
-  location: "",
-  island: "",
-  unitsNeeded: 1,
-  urgent: false,
-  status: "open",
-  notes: "",
-});
+const editDetails = shallowRef<Partial<RequestDetails>>({});
 
-const isNew = computed(() => editId.value === 0);
+const isNew = computed(() => !editDetails.value.id);
 
 const { data, pending, refresh } = await useLazyFetch("/api/requests", {
   query: { page, search, type, status, priority },
 });
 
-const columns: TableColumn<BloodRequest>[] = [
+const columns: TableColumn<RequestRow>[] = [
   { accessorKey: "id", header: "#" },
   { accessorKey: "bloodType", header: "Blood Type" },
   { accessorKey: "location", header: "Location" },
@@ -66,16 +58,23 @@ const columns: TableColumn<BloodRequest>[] = [
   },
 ];
 
+const BLANK_REQUEST = {
+  userId: null as DbBloodRequest["userId"],
+  bloodType: "" as DbBloodRequest["bloodType"],
+  location: "",
+  island: "",
+  unitsNeeded: 1,
+  urgent: false,
+  status: "open" as DbBloodRequest["status"],
+  notes: "",
+};
+
+const edit = reactive({ ...BLANK_REQUEST });
+
 function resetForm() {
-  editId.value = 0;
-  edit.userId = null;
-  edit.bloodType = "";
-  edit.location = "";
-  edit.island = "";
-  edit.unitsNeeded = 1;
-  edit.urgent = false;
-  edit.status = "open";
-  edit.notes = "";
+  editDetails.value = {};
+  isLoading.value = false;
+  Object.assign(edit, BLANK_REQUEST);
 }
 
 function add() {
@@ -83,35 +82,62 @@ function add() {
   showDialog.value = true;
 }
 
-function onSelect(e: Event, row: TableRow<BloodRequest>) {
-  editId.value = row.original.id;
-  edit.userId = row.original.userId;
-  edit.bloodType = row.original.bloodType;
-  edit.location = row.original.location;
-  edit.island = row.original.island;
-  edit.unitsNeeded = row.original.unitsNeeded;
-  edit.urgent = row.original.urgent;
-  edit.status = row.original.status;
-  edit.notes = row.original.notes;
+async function onSelect(_event: Event, row: TableRow<RequestRow>) {
+  editDetails.value = row.original;
+  Object.assign(edit, {
+    ...BLANK_REQUEST,
+    bloodType: row.original.bloodType,
+    location: row.original.location,
+    island: row.original.island,
+    unitsNeeded: row.original.unitsNeeded,
+    urgent: row.original.urgent,
+    status: row.original.status,
+  });
   showDialog.value = true;
+
+  isLoading.value = true;
+
+  try {
+    const request = await $fetch(`/api/requests/${row.original.id}`);
+    if (editDetails.value.id === row.original.id) {
+      Object.assign(edit, {
+        userId: request.userId,
+        bloodType: request.bloodType,
+        location: request.location,
+        island: request.island,
+        unitsNeeded: request.unitsNeeded,
+        urgent: request.urgent,
+        status: request.status,
+        notes: request.notes,
+      });
+      editDetails.value = request;
+      isLoading.value = false; // disable loading and enable submit only if the request fetch is successful
+    }
+  } catch (error) {
+    toast.add({
+      title: "Could not load request details",
+      description: (error as FetchError)?.data?.message ?? (error as Error).message,
+      color: "error",
+    });
+  }
 }
 
-async function save({ data }: FormSubmitEvent<RequestEdit>) {
+async function save({ data }: FormSubmitEvent<typeof edit>) {
   try {
     isLoading.value = true;
 
     const body = { ...data, userId: data.userId || null };
 
-    if (editId.value) await $fetch(`/api/requests/${editId.value}`, { method: "PUT", body });
-    else await $fetch("/api/requests", { method: "POST", body });
+    if (isNew.value) await $fetch("/api/requests", { method: "POST", body });
+    else await $fetch(`/api/requests/${editDetails.value.id}`, { method: "PUT", body });
 
     refresh();
-    toast.add({ title: editId.value ? "Request updated" : "Request added", color: "success" });
+    toast.add({ title: isNew.value ? "Request added" : "Request updated", color: "success" });
     showDialog.value = false;
     resetForm();
   } catch (error) {
     toast.add({
-      title: editId.value ? "Could not update request" : "Could not add request",
+      title: isNew.value ? "Could not add request" : "Could not update request",
       description: (error as FetchError)?.data.message ?? (error as Error).message,
       color: "error",
     });

@@ -47,7 +47,20 @@ export default defineEventHandler(async (event) => {
   );
 
   const [data, [total]] = await Promise.all([
-    db.select().from(schema.users).limit(limit).offset(offset).where(where),
+    db
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+        phone: schema.users.phone,
+        nid: schema.users.nid,
+        bloodType: schema.users.bloodType,
+        lastDonatedAt: schema.users.lastDonatedAt,
+        isAvailable: schema.users.isAvailable,
+      })
+      .from(schema.users)
+      .limit(limit)
+      .offset(offset)
+      .where(where),
     db.select({ count: count() }).from(schema.users).where(where),
     db.select({ count: count() }).from(schema.users).where(eq(schema.users.isAvailable, true)),
     db
