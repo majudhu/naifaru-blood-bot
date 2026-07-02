@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { $fetch, setup } from "@nuxt/test-utils/e2e";
 
-describe("example e2e test", async () => {
-  await setup();
+const nuxtConfig = {
+  nitro: {
+    preset: "node-server",
+  },
+  runtimeConfig: {
+    session: {
+      password: "test-password-with-at-least-32-characters",
+    },
+  },
+} as NonNullable<Parameters<typeof setup>[0]>["nuxtConfig"];
 
-  it("renders the index page", async () => {
-    const html = await $fetch("/");
-    expect(html).toContain("Nuxt");
+describe("login page", async () => {
+  await setup({
+    nuxtConfig,
+  });
+
+  it("renders the login form", async () => {
+    const html = await $fetch("/login");
+    expect(html).toContain("Username");
+    expect(html).toContain("Password");
+    expect(html).toContain("Login");
   });
 });

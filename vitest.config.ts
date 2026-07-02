@@ -6,6 +6,11 @@ export default defineConfig({
   test: {
     projects: [
       {
+        resolve: {
+          alias: {
+            h3: fileURLToPath(new URL("./test/unit/h3-stub.ts", import.meta.url)),
+          },
+        },
         test: {
           name: "unit",
           include: ["test/unit/*.{test,spec}.ts"],
