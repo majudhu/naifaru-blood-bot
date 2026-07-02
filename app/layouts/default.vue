@@ -21,15 +21,15 @@ const items = computed<NavigationMenuItem[]>(() => [
     to: "/",
     onSelect,
   },
-  {
-    label: "Requests",
-    icon: "i-lucide-inbox",
-    badge: "0",
-    to: "/requests",
-    onSelect,
-  },
   ...(user.value?.role === "admin"
     ? [
+        {
+          label: "Requests",
+          icon: "i-lucide-inbox",
+          badge: "0",
+          to: "/requests",
+          onSelect,
+        },
         {
           label: "Staff",
           icon: "i-lucide-users",
@@ -64,7 +64,7 @@ const items = computed<NavigationMenuItem[]>(() => [
         variant="ghost"
         aria-label="Toggle sidebar"
         class="lg:hidden"
-        @click="open = !open"
+        @click="void (open = !open)"
       />
       <h1 class="text-xl font-semibold pb-4">Naifaru Blood Donors</h1>
     </header>

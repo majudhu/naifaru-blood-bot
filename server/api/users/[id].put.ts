@@ -4,7 +4,7 @@ import { CreateuserParser } from "../users.post";
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event);
-  if (user.role !== "admin") throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  if (!user.role) throw createError({ statusCode: 403, statusMessage: "Forbidden" });
 
   const userId = +getRouterParam(event, "id")!;
   if (!userId) throw createError({ statusCode: 400, statusMessage: "Invalid user ID" });

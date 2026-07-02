@@ -96,7 +96,6 @@ function resetForm() {
   editDetails.value = {};
   isLoading.value = false;
   Object.assign(edit, BLANK_USER);
-  isLoading.value = false;
 }
 
 const lastDonated = computed(() => {
@@ -114,10 +113,15 @@ async function save(event: FormSubmitEvent<typeof edit>) {
     if (isNew.value) await $fetch("/api/users", { method: "POST", body: event.data });
     else await $fetch(`/api/users/${editDetails.value.id}`, { method: "PUT", body: event.data });
 
-    refresh();
-    dashboard.refresh();
+    donorStatus.value = event.data.isAvailable ? "donors" : "non-donors";
 
-    if (isNew.value) page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
+    if (isNew.value)
+      refresh().then(() => {
+        page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
+      });
+    else refresh();
+
+    dashboard.refresh();
 
     toast.add({
       title: isNew.value ? "User added" : "User updated",
@@ -246,7 +250,9 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
       class="ml-auto"
       :ui="{ content: 'max-w-2xl' }"
     >
-      <UButton icon="i-lucide-user-plus" @click="add">Add User</UButton>
+      <UButton v-if="user?.role === 'admin'" icon="i-lucide-user-plus" @click="add">
+        Add User
+      </UButton>
       <template #body>
         <UForm :state="edit" @submit="save" class="grid md:grid-cols-2 gap-3">
           <UFormField label="Name">
@@ -335,10 +341,10 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
           <UButton
             type="submit"
             :icon="isNew ? 'i-lucide-user-plus' : 'i-lucide-user-check'"
-            :loading="isLoading"
+            :cloading="isLoading"
             :disabled="isLoading"
           >
-            {{ isNew ? "Add" : "Save" }}
+            {{ isNew ? "Add" : "Save" }}c
           </UButton>
           <UButton
             v-if="user?.role === 'admin' && !isNew"
