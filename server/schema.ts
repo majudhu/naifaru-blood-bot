@@ -55,12 +55,15 @@ export const bloodRequests = sqliteTable(
     unitsNeeded: integer("units_needed").notNull().default(1),
     urgent: integer("urgent", { mode: "boolean" }).notNull().default(false),
     status: text("status", { enum: requestStatusValues }).notNull().default("open"),
+    telegramChatId: integer("telegram_chat_id"),
+    telegramMessageId: integer("telegram_message_id"),
     notes: text("notes").notNull().default(""),
     ...timestampColumns(),
   },
   (table) => [
     index("blood_requests_blood_type_idx").on(table.bloodType),
     index("blood_requests_status_idx").on(table.status),
+    index("blood_requests_telegram_message_idx").on(table.telegramChatId, table.telegramMessageId),
   ],
 );
 
@@ -136,6 +139,21 @@ export const blacklist = sqliteTable("blacklist", {
   reason: text("reason").notNull().default(""),
 });
 
+export const botSessions = sqliteTable("bot_sessions", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export const telegramProcessedUpdates = sqliteTable("telegram_processed_updates", {
+  updateId: integer("update_id").primaryKey(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   responses: many(donorResponses),
   donations: many(donations),
@@ -186,3 +204,7 @@ export type DonorResponse = typeof donorResponses.$inferSelect;
 export type NewDonorResponse = typeof donorResponses.$inferInsert;
 export type Donation = typeof donations.$inferSelect;
 export type NewDonation = typeof donations.$inferInsert;
+export type BotSession = typeof botSessions.$inferSelect;
+export type NewBotSession = typeof botSessions.$inferInsert;
+export type TelegramProcessedUpdate = typeof telegramProcessedUpdates.$inferSelect;
+export type NewTelegramProcessedUpdate = typeof telegramProcessedUpdates.$inferInsert;

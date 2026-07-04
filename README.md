@@ -10,6 +10,22 @@ Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduct
 4. Open <http://localhost:3000> on browser
 5. Initial username is 'naifaru' and password is 'leyrobot'
 
+## Telegram Bot Setup
+
+1. Copy `env.example` to `.env` for local development and fill in `NUXT_SESSION_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_CHANNEL_ID`, and `TELEGRAM_BOT_USERNAME`.
+2. Add the bot as an admin in the Telegram channel configured by `TELEGRAM_CHANNEL_ID` so it can publish blood request posts.
+3. Deploy the Worker, then set the Telegram webhook:
+
+   ```sh
+   curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+     -d "url=https://your-worker-domain.example/api/telegram/webhook" \
+     -d "secret_token=$TELEGRAM_WEBHOOK_SECRET"
+   ```
+
+4. Apply D1 migrations after deploy so the bot session, update dedupe, and channel message tracking tables exist.
+
+For Cloudflare production, store secrets with `wrangler secret put` instead of committing real values.
+
 ## Database Migrations
 
 ### Create Production Database Migrations

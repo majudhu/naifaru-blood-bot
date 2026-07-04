@@ -26,6 +26,10 @@
     },
   ],
 
+  "vars": {
+    "PNPM_VERSION": "11.9.0",
+  },
+
   /**
    * Smart Placement
    * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

@@ -28,6 +28,7 @@
     "@vueuse/core": "^14.3.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "grammy": "^1.44.0",
     "nuxt": "^4.4.6",
     "nuxt-auth-utils": "0.5.29",
     "tailwindcss": "^4.3.0",
