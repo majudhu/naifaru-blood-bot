@@ -50,5 +50,6 @@
     "tsx": "^4.22.3",
     "vitest": "^4.1.7",
     "wrangler": "^4.93.1"
-  }
+  },
+  "packageManager": "pnpm@11.9.0"
 }
