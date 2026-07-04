@@ -30,5 +30,3 @@ logs
 
 # Test coverage
 coverage/
-
-pnpm-workspace.yaml
