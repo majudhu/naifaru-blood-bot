@@ -1,4 +1,4 @@
-import { Bot, session, webhookCallback } from "grammy";
+import { Bot, session } from "grammy";
 
 import {
   bloodProfileKeyboard,
@@ -458,15 +458,4 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
   });
 
   return bot;
-}
-
-export function createTelegramWebhookResponse(input: {
-  config: TelegramConfig;
-  db: AppDb;
-  request: Request;
-}) {
-  return webhookCallback(createTelegramBot(input), "cloudflare-mod", {
-    onTimeout: "return",
-    secretToken: input.config.webhookSecret,
-  })(input.request);
 }
