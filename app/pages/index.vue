@@ -344,7 +344,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
             :cloading="isLoading"
             :disabled="isLoading"
           >
-            {{ isNew ? "Add" : "Save" }}c
+            {{ isNew ? "Add" : "Save" }}
           </UButton>
           <UButton
             v-if="user?.role === 'admin' && !isNew"
