@@ -43,6 +43,7 @@
    * Note: Use secrets to store sensitive data.
    * https://developers.cloudflare.com/workers/configuration/secrets/
    */
+  "keep_vars": true,
   "vars": {
     "NUXT_SESSION_PASSWORD": "",
     "TELEGRAM_BOT_TOKEN": "",
