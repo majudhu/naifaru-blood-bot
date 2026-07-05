@@ -48,15 +48,6 @@ export function isBloodType(value: string): value is BloodType {
   return bloodTypeValues.includes(value as (typeof bloodTypeValues)[number]) && value !== "";
 }
 
-function displayName(contact: TelegramContactInput, from: TelegramUserInput) {
-  return (
-    [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() ||
-    [from.first_name, from.last_name].filter(Boolean).join(" ").trim() ||
-    from.username ||
-    `Telegram ${from.id}`
-  );
-}
-
 function dateValue(value: Date | number | null | undefined) {
   if (value instanceof Date) return value;
   if (typeof value === "number") return new Date(value * 1000);
@@ -92,11 +83,6 @@ export async function findUserByTelegramId(db: AppDb, telegramUserId: number) {
   return user;
 }
 
-export async function findUserById(db: AppDb, userId: number) {
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  return user;
-}
-
 export async function isBlacklisted(
   db: AppDb,
   input: { phone?: string | null; telegramUserId?: number; username?: string | null },
@@ -128,7 +114,11 @@ export async function upsertTelegramContactUser(
 ) {
   const phone = normalizePhone(contact.phone_number);
   const telegramUsername = from.username || null;
-  const name = displayName(contact, from);
+  const name =
+    [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() ||
+    [from.first_name, from.last_name].filter(Boolean).join(" ").trim() ||
+    from.username ||
+    `Telegram ${from.id}`;
   const existingByTelegram = await findUserByTelegramId(db, from.id);
   const updateValues = {
     name,
@@ -270,26 +260,6 @@ export async function recordChannelMessage(
     .where(eq(bloodRequests.id, requestId));
 }
 
-async function findRequest(db: AppDb, requestId: number) {
-  const [request] = await db
-    .select()
-    .from(bloodRequests)
-    .where(eq(bloodRequests.id, requestId))
-    .limit(1);
-
-  return request;
-}
-
-async function findExistingResponse(db: AppDb, requestId: number, donorId: number) {
-  const [response] = await db
-    .select()
-    .from(donorResponses)
-    .where(and(eq(donorResponses.requestId, requestId), eq(donorResponses.donorId, donorId)))
-    .limit(1);
-
-  return response;
-}
-
 export async function acceptHelpOffer(
   db: AppDb,
   input: { donorTelegramUserId: number; requestId: number },
@@ -306,7 +276,12 @@ export async function acceptHelpOffer(
   )
     return { status: "blacklisted" };
 
-  const request = await findRequest(db, input.requestId);
+  const [request] = await db
+    .select()
+    .from(bloodRequests)
+    .where(eq(bloodRequests.id, input.requestId))
+    .limit(1);
+
   if (!request) return { status: "request_not_found" };
   if (request.status !== "open") return { request, status: "request_closed" };
 
@@ -314,8 +289,15 @@ export async function acceptHelpOffer(
   if (donor.bloodType !== request.bloodType) return { donor, request, status: "wrong_blood_type" };
   if (isInDonationCooldown(donor)) return { donor, status: "cooldown" };
 
-  const requester = request.userId ? await findUserById(db, request.userId) : undefined;
-  const existing = await findExistingResponse(db, input.requestId, donor.id);
+  const [requester] = request.userId
+    ? await db.select().from(users).where(eq(users.id, request.userId)).limit(1)
+    : [];
+  const [existing] = await db
+    .select()
+    .from(donorResponses)
+    .where(and(eq(donorResponses.requestId, input.requestId), eq(donorResponses.donorId, donor.id)))
+    .limit(1);
+
   if (existing) return { donor, request, requester, status: "already_accepted" };
 
   await db.insert(donorResponses).values({

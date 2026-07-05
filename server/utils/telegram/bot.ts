@@ -26,7 +26,6 @@ import {
   updateUserSex,
   updateUserTextField,
   upsertTelegramContactUser,
-  type HelpOfferResult,
 } from "./services";
 import { createD1SessionStorage, markTelegramUpdateProcessed } from "./storage";
 import {
@@ -35,17 +34,9 @@ import {
   formatProfile,
   formatRequesterContact,
 } from "./format";
-import type { AppDb, RequestDraft, TelegramConfig, TelegramContext, TelegramSession } from "./types";
+import type { AppDb, TelegramConfig, TelegramContext, TelegramSession } from "./types";
 
 const html = { parse_mode: "HTML" as const };
-
-function clearFlow(ctx: TelegramContext) {
-  delete ctx.session.flow;
-}
-
-function requestDraftIsComplete(draft: Partial<RequestDraft>): draft is Required<RequestDraft> {
-  return Boolean(draft?.bloodType && draft.location && draft.unitsNeeded);
-}
 
 async function promptForContact(ctx: TelegramContext) {
   await ctx.reply("Welcome to Naifaru Blood Donors. Please press START to share your contact.", {
@@ -91,18 +82,28 @@ async function startRequest(ctx: TelegramContext, db: AppDb) {
   const user = await registeredUser(ctx, db);
   if (!user) return;
 
-  clearFlow(ctx);
+  delete ctx.session.flow;
   await ctx.reply("Select the blood group you need.", {
     reply_markup: bloodRequestKeyboard(),
   });
 }
 
-function requestIdFromStartPayload(payload: string) {
-  const match = /^help_(\d+)$/.exec(payload);
-  return match ? Number(match[1]) : undefined;
-}
+async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
+  const donorTelegramUserId = ctx.from?.id;
+  if (!donorTelegramUserId) return;
 
-async function notifyHelpResult(ctx: TelegramContext, result: HelpOfferResult) {
+  const donor = await findUserByTelegramId(db, donorTelegramUserId);
+  if (!donor) {
+    ctx.session.pendingHelpRequestId = requestId;
+    await promptForContact(ctx);
+    return;
+  }
+
+  ctx.session.pendingHelpRequestId = requestId;
+  const result = await acceptHelpOffer(db, { donorTelegramUserId, requestId });
+  if (result.status === "accepted" || result.status === "already_accepted")
+    ctx.session.pendingHelpRequestId = undefined;
+
   if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => {});
 
   switch (result.status) {
@@ -113,7 +114,11 @@ async function notifyHelpResult(ctx: TelegramContext, result: HelpOfferResult) {
           result.requester.telegramUserId &&
           result.requester.telegramUserId !== result.donor.telegramUserId
         ) {
-          await ctx.api.sendMessage(result.requester.telegramUserId, formatDonorContact(result.donor), html);
+          await ctx.api.sendMessage(
+            result.requester.telegramUserId,
+            formatDonorContact(result.donor),
+            html,
+          );
         }
       } else {
         await ctx.reply("Thanks for helping. Staff will contact you with requester details.");
@@ -134,10 +139,9 @@ async function notifyHelpResult(ctx: TelegramContext, result: HelpOfferResult) {
       await promptForContact(ctx);
       return;
     case "profile_incomplete":
-      await ctx.reply(
-        "Please complete your donor profile before offering to help.",
-        { reply_markup: mainMenuKeyboard() },
-      );
+      await ctx.reply("Please complete your donor profile before offering to help.", {
+        reply_markup: mainMenuKeyboard(),
+      });
       await ctx.reply(formatProfile(result.donor), {
         ...html,
         reply_markup: profileKeyboard(),
@@ -157,25 +161,6 @@ async function notifyHelpResult(ctx: TelegramContext, result: HelpOfferResult) {
   }
 }
 
-async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
-  const donorTelegramUserId = ctx.from?.id;
-  if (!donorTelegramUserId) return;
-
-  const donor = await findUserByTelegramId(db, donorTelegramUserId);
-  if (!donor) {
-    ctx.session.pendingHelpRequestId = requestId;
-    await promptForContact(ctx);
-    return;
-  }
-
-  ctx.session.pendingHelpRequestId = requestId;
-  const result = await acceptHelpOffer(db, { donorTelegramUserId, requestId });
-  if (result.status === "accepted" || result.status === "already_accepted")
-    ctx.session.pendingHelpRequestId = undefined;
-
-  await notifyHelpResult(ctx, result);
-}
-
 async function tryPendingHelp(ctx: TelegramContext, db: AppDb) {
   const requestId = ctx.session.pendingHelpRequestId;
   if (!requestId || !ctx.from?.id) return;
@@ -184,96 +169,6 @@ async function tryPendingHelp(ctx: TelegramContext, db: AppDb) {
   if (!user || !isCompleteDonorProfile(user)) return;
 
   await offerHelp(ctx, db, requestId);
-}
-
-async function completeRequest(ctx: TelegramContext, db: AppDb, config: TelegramConfig, urgent: boolean) {
-  const flow = ctx.session.flow;
-  if (!flow || flow.kind !== "request_urgent" || !requestDraftIsComplete(flow.draft)) {
-    clearFlow(ctx);
-    await startRequest(ctx, db);
-    return;
-  }
-
-  const user = await registeredUser(ctx, db);
-  if (!user) return;
-
-  const request = await createBloodRequest(db, user, {
-    ...flow.draft,
-    urgent,
-  });
-
-  if (config.channelId) {
-    const message = await ctx.api.sendMessage(config.channelId, formatChannelRequest(request), {
-      ...html,
-      reply_markup: helpKeyboard(request.id, config.botUsername),
-    });
-
-    await recordChannelMessage(db, request.id, {
-      chatId: message.chat.id,
-      messageId: message.message_id,
-    });
-  }
-
-  clearFlow(ctx);
-  await ctx.reply(
-    config.channelId
-      ? "Request sent to the channel. We will notify you when a donor offers to help."
-      : "Request recorded. Telegram channel posting is not configured.",
-    { reply_markup: mainMenuKeyboard() },
-  );
-}
-
-async function handleProfileText(ctx: TelegramContext, db: AppDb, text: string) {
-  const user = await registeredUser(ctx, db);
-  const flow = ctx.session.flow;
-  if (!user || !flow) return false;
-
-  if (flow.kind === "profile_nid") {
-    const nid = text.trim().toUpperCase();
-    if (nid.length !== 7) {
-      await ctx.reply("Please send a 7-character NID, for example A123456.");
-      return true;
-    }
-    await updateUserTextField(db, user.id, "nid", nid);
-  } else if (flow.kind === "profile_dob") {
-    const dob = new Date(text.trim());
-    if (Number.isNaN(dob.getTime())) {
-      await ctx.reply("Please send your date of birth as YYYY-MM-DD.");
-      return true;
-    }
-    await updateUserDob(db, user.id, dob);
-  } else if (flow.kind === "profile_address") {
-    await updateUserTextField(db, user.id, "address", text.trim());
-  } else if (flow.kind === "profile_island") {
-    await updateUserTextField(db, user.id, "island", text.trim());
-  } else {
-    return false;
-  }
-
-  clearFlow(ctx);
-  await ctx.reply("Profile updated.");
-  await showProfile(ctx, db);
-  await tryPendingHelp(ctx, db);
-  return true;
-}
-
-async function handleRequestText(ctx: TelegramContext, db: AppDb, text: string) {
-  const flow = ctx.session.flow;
-  if (!flow || flow.kind !== "request_location") return false;
-
-  const location = text.trim();
-  if (!location) {
-    await ctx.reply("Please send the hospital or location.");
-    return true;
-  }
-
-  ctx.session.flow = {
-    draft: { ...flow.draft, location },
-    kind: "request_units",
-  };
-
-  await ctx.reply("How many units are needed?", { reply_markup: unitsKeyboard() });
-  return true;
 }
 
 export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) {
@@ -297,7 +192,8 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
 
   bot.command("start", async (ctx) => {
     const payload = typeof ctx.match === "string" ? ctx.match.trim() : "";
-    const requestId = requestIdFromStartPayload(payload);
+    const requestIdMatch = /^help_(\d+)$/.exec(payload);
+    const requestId = requestIdMatch ? Number(requestIdMatch[1]) : undefined;
 
     if (requestId) {
       await offerHelp(ctx, input.db, requestId);
@@ -364,7 +260,7 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
     const unitsNeeded = Number(ctx.callbackQuery.data.split(":").at(-1));
     if (!flow || flow.kind !== "request_units" || !Number.isInteger(unitsNeeded)) {
       await ctx.answerCallbackQuery({ text: "Please start the request again." });
-      clearFlow(ctx);
+      delete ctx.session.flow;
       return;
     }
 
@@ -377,9 +273,56 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
   });
 
   bot.callbackQuery(/^request:urgent:[01]$/, async (ctx) => {
+    const flow = ctx.session.flow;
     const urgent = ctx.callbackQuery.data.endsWith(":1");
     await ctx.answerCallbackQuery();
-    await completeRequest(ctx, input.db, input.config, urgent);
+
+    if (!flow || flow.kind !== "request_urgent") {
+      delete ctx.session.flow;
+      await startRequest(ctx, input.db);
+      return;
+    }
+
+    const { bloodType, location, unitsNeeded } = flow.draft;
+    if (!location || !unitsNeeded) {
+      delete ctx.session.flow;
+      await startRequest(ctx, input.db);
+      return;
+    }
+
+    const user = await registeredUser(ctx, input.db);
+    if (!user) return;
+
+    const request = await createBloodRequest(input.db, user, {
+      bloodType,
+      location,
+      unitsNeeded,
+      urgent,
+    });
+
+    if (input.config.channelId) {
+      const message = await ctx.api.sendMessage(
+        input.config.channelId,
+        formatChannelRequest(request),
+        {
+          ...html,
+          reply_markup: helpKeyboard(request.id, input.config.botUsername),
+        },
+      );
+
+      await recordChannelMessage(input.db, request.id, {
+        chatId: message.chat.id,
+        messageId: message.message_id,
+      });
+    }
+
+    delete ctx.session.flow;
+    await ctx.reply(
+      input.config.channelId
+        ? "Request sent to the channel. We will notify you when a donor offers to help."
+        : "Request recorded. Telegram channel posting is not configured.",
+      { reply_markup: mainMenuKeyboard() },
+    );
   });
 
   bot.callbackQuery(/^help:(\d+)$/, async (ctx) => {
@@ -447,8 +390,59 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
 
   bot.on("message:text", async (ctx) => {
     const text = ctx.message.text;
-    if (await handleProfileText(ctx, input.db, text)) return;
-    if (await handleRequestText(ctx, input.db, text)) return;
+    const flow = ctx.session.flow;
+
+    if (flow?.kind === "request_location") {
+      const location = text.trim();
+      if (!location) {
+        await ctx.reply("Please send the hospital or location.");
+        return;
+      }
+
+      ctx.session.flow = {
+        draft: { ...flow.draft, location },
+        kind: "request_units",
+      };
+
+      await ctx.reply("How many units are needed?", { reply_markup: unitsKeyboard() });
+      return;
+    }
+
+    if (
+      flow?.kind === "profile_nid" ||
+      flow?.kind === "profile_dob" ||
+      flow?.kind === "profile_address" ||
+      flow?.kind === "profile_island"
+    ) {
+      const user = await registeredUser(ctx, input.db);
+      if (!user) return;
+
+      if (flow.kind === "profile_nid") {
+        const nid = text.trim().toUpperCase();
+        if (nid.length !== 7) {
+          await ctx.reply("Please send a 7-character NID, for example A123456.");
+          return;
+        }
+        await updateUserTextField(input.db, user.id, "nid", nid);
+      } else if (flow.kind === "profile_dob") {
+        const dob = new Date(text.trim());
+        if (Number.isNaN(dob.getTime())) {
+          await ctx.reply("Please send your date of birth as YYYY-MM-DD.");
+          return;
+        }
+        await updateUserDob(input.db, user.id, dob);
+      } else if (flow.kind === "profile_address") {
+        await updateUserTextField(input.db, user.id, "address", text.trim());
+      } else {
+        await updateUserTextField(input.db, user.id, "island", text.trim());
+      }
+
+      delete ctx.session.flow;
+      await ctx.reply("Profile updated.");
+      await showProfile(ctx, input.db);
+      await tryPendingHelp(ctx, input.db);
+      return;
+    }
 
     await ctx.reply("Choose an option from the menu.", { reply_markup: mainMenuKeyboard() });
   });
