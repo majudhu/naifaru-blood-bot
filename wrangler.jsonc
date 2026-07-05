@@ -43,7 +43,14 @@
    * Note: Use secrets to store sensitive data.
    * https://developers.cloudflare.com/workers/configuration/secrets/
    */
-  // "vars": {  "MY_VARIABLE": "production_value" }
+  "vars": {
+    "NUXT_SESSION_PASSWORD": "",
+    "TELEGRAM_BOT_TOKEN": "",
+    "TELEGRAM_WEBHOOK_SECRET": "",
+    "TELEGRAM_CHANNEL_ID": "-1001817097462",
+    "TELEGRAM_BOT_USERNAME": "cenpharmy_bot",
+    "TELEGRAM_BOT_INFO": "{\"id\":5874813031,\"is_bot\":true,\"first_name\":\"Cenpharmy Bot\",\"username\":\"cenpharmy_bot\",\"can_join_groups\":true,\"can_read_all_group_messages\":false,\"supports_inline_queries\":false}",
+  },
   /**
    * Service Bindings (communicate between multiple Workers)
    * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
