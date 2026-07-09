@@ -1,4 +1,4 @@
-import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNotNull, ne, or, sql, type SQL } from "drizzle-orm";
 
 import { bloodTypeValues, DAY_MS, EPOCH_STRING } from "../../../shared/utils/const";
 import {
@@ -194,6 +194,26 @@ export async function createBloodRequest(db: AppDb, user: User, input: { bloodTy
 
   if (!request) throw new Error("Failed to create blood request");
   return request;
+}
+
+export async function findMatchingTelegramUsers(
+  db: AppDb,
+  input: { bloodType: BloodType; requesterId: number },
+) {
+  return await db
+    .select()
+    .from(users)
+    .where(
+      and(
+        eq(users.bloodType, input.bloodType),
+        eq(users.isAvailable, true),
+        ne(users.id, input.requesterId),
+        or(
+          isNotNull(users.telegramUserId),
+          and(isNotNull(users.telegramUsername), ne(users.telegramUsername, "")),
+        ),
+      ),
+    );
 }
 
 export async function recordChannelMessage(

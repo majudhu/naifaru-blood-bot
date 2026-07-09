@@ -4,6 +4,7 @@ import { bloodRequestKeyboard, contactKeyboard, helpKeyboard, mainMenuKeyboard }
 import {
   acceptHelpOffer,
   createBloodRequest,
+  findMatchingTelegramUsers,
   findUserByTelegramId,
   isBlacklisted,
   isBloodType,
@@ -12,7 +13,12 @@ import {
   upsertTelegramContactUser,
 } from "./services";
 import { createD1SessionStorage, markTelegramUpdateProcessed } from "./storage";
-import { formatChannelRequest, formatDonorContact, formatRequesterContact } from "./format";
+import {
+  formatChannelRequest,
+  formatDonorContact,
+  formatMatchingRequestNotification,
+  formatRequesterContact,
+} from "./format";
 import type { AppDb, TelegramConfig, TelegramContext, TelegramSession } from "./types";
 
 const html = { parse_mode: "HTML" as const };
@@ -233,6 +239,25 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
         messageId: message.message_id,
       });
     }
+
+    const matchingUsers = await findMatchingTelegramUsers(input.db, {
+      bloodType,
+      requesterId: user.id,
+    });
+    await Promise.allSettled(
+      matchingUsers.map((matchingUser) => {
+        const username = matchingUser.telegramUsername?.trim();
+        const chatId =
+          matchingUser.telegramUserId ??
+          (username ? (username.startsWith("@") ? username : `@${username}`) : undefined);
+        if (!chatId) return Promise.resolve();
+
+        return ctx.api.sendMessage(chatId, formatMatchingRequestNotification(user, request), {
+          ...html,
+          reply_markup: helpKeyboard(request.id, input.config.botUsername),
+        });
+      }),
+    );
 
     await ctx.reply(
       input.config.channelId

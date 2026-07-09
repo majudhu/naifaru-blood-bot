@@ -20,6 +20,18 @@ export function formatChannelRequest(request: Pick<BloodRequest, "bloodType">) {
   );
 }
 
+export function formatMatchingRequestNotification(
+  requester: Pick<User, "name" | "phone">,
+  request: Pick<BloodRequest, "bloodType">,
+) {
+  return [
+    "<b>Matching blood request</b>",
+    `Requester: ${escapeHtml(requester.name)}`,
+    `Blood group: <b>${escapeHtml(request.bloodType)}</b>`,
+    `Phone: ${formatPhoneLink(requester.phone ?? null)}`,
+  ].join("\n");
+}
+
 export function formatDonorContact(donor: User) {
   return [
     "<b>A donor offered to help.</b>",

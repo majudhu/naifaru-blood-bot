@@ -5,9 +5,13 @@ import type { User } from "../../server/schema";
 import {
   acceptHelpOffer,
   createBloodRequest,
+  findMatchingTelegramUsers,
   upsertTelegramContactUser,
 } from "../../server/utils/telegram/services";
-import { formatChannelRequest } from "../../server/utils/telegram/format";
+import {
+  formatChannelRequest,
+  formatMatchingRequestNotification,
+} from "../../server/utils/telegram/format";
 import { assertTelegramWebhookSecret } from "../../server/utils/telegram/config";
 import { markTelegramUpdateProcessed } from "../../server/utils/telegram/storage";
 import { createDbMock, expectHttpError } from "./api-test-utils";
@@ -154,6 +158,29 @@ describe("Telegram blood requests", () => {
     expect(channelText).not.toContain("Units");
     expect(channelText).not.toContain("Urgent");
     expect(channelText).not.toContain("9991111");
+
+    const notificationText = formatMatchingRequestNotification(requester, request);
+    expect(notificationText).toContain("Requester: Aisha");
+    expect(notificationText).toContain("Blood group: <b>O+</b>");
+    expect(notificationText).toContain("Phone: <code>9991111</code>");
+  });
+
+  it("finds available Telegram-known users with the matching blood group", async () => {
+    const db = dbMock();
+    const matchingUsers = [
+      user({ id: 4, telegramUserId: 444, telegramUsername: null }),
+      user({ id: 5, telegramUserId: null, telegramUsername: "donor" }),
+    ];
+    const select = db.queueSelect(matchingUsers);
+
+    await expect(
+      findMatchingTelegramUsers(db, {
+        bloodType: "O+",
+        requesterId: 3,
+      }),
+    ).resolves.toEqual(matchingUsers);
+
+    expect(select.where).toHaveBeenCalledTimes(1);
   });
 });
 
