@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 
 import { bloodTypeValues, DAY_MS, EPOCH_STRING } from "../../../shared/utils/const";
 import {
@@ -181,6 +181,7 @@ export async function findMatchingTelegramUsers(
       and(
         eq(users.bloodType, input.bloodType),
         eq(users.isAvailable, true),
+        lte(users.lastDonatedAt, sql`unixepoch('now', '-90 days')`),
         ne(users.id, input.requesterId),
         or(
           isNotNull(users.telegramUserId),

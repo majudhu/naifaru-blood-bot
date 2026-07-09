@@ -1,4 +1,4 @@
-import { and, count, eq, gt, gte, like, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, count, eq, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
 import { createError } from "h3";
 
 const limit = 20;
@@ -62,16 +62,6 @@ export default defineEventHandler(async (event) => {
       .offset(offset)
       .where(where),
     db.select({ count: count() }).from(schema.users).where(where),
-    db.select({ count: count() }).from(schema.users).where(eq(schema.users.isAvailable, true)),
-    db
-      .select({ count: count() })
-      .from(schema.users)
-      .where(
-        and(
-          eq(schema.users.isAvailable, true),
-          gte(schema.users.createdAt, sql`unixepoch('now', '-30 days')`),
-        ),
-      ),
   ]);
 
   return { data, total: total?.count };
