@@ -3,15 +3,14 @@ import type { Update } from "grammy/types";
 
 import { createTelegramBot } from "../../utils/telegram/bot";
 import { assertTelegramWebhookSecret, getTelegramConfig } from "../../utils/telegram/config";
-import type { TelegramEnv } from "../../utils/telegram/types";
 
 export default defineEventHandler(async (event) => {
   const cloudflare = event.context.cloudflare;
-  const config = getTelegramConfig((cloudflare?.env ?? process.env) as TelegramEnv);
+  const config = getTelegramConfig(cloudflare.env);
   const db = useDb(event);
 
   assertTelegramWebhookSecret(
-    getHeader(event, "X-Telegram-Bot-Api-Secret-Token") ?? undefined,
+    getHeader(event, "X-Telegram-Bot-Api-Secret-Token"),
     config.webhookSecret,
   );
 
@@ -20,6 +19,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "Invalid Telegram update" });
   }
 
-  await createTelegramBot({ config, db }).handleUpdate(update);
+  await createTelegramBot({
+    config,
+    db,
+    waitUntil: cloudflare.context.waitUntil.bind(cloudflare.context),
+  }).handleUpdate(update);
   return { ok: true };
 });

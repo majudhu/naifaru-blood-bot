@@ -14,17 +14,11 @@ export type TelegramSession = {
 export type TelegramContext = Context & SessionFlavor<TelegramSession>;
 
 export type TelegramConfig = {
-  botInfo?: BotConfig<Context>["botInfo"];
+  botInfo: BotConfig<Context>["botInfo"];
   botToken: string;
-  botUsername?: string;
-  channelId?: number | string;
-  webhookSecret?: string;
+  botUsername: string;
+  channelId: number | string;
+  webhookSecret: string;
 };
 
-export type TelegramEnv = Partial<Env> & {
-  TELEGRAM_BOT_INFO?: string;
-  TELEGRAM_BOT_TOKEN?: string;
-  TELEGRAM_BOT_USERNAME?: string;
-  TELEGRAM_CHANNEL_ID?: string;
-  TELEGRAM_WEBHOOK_SECRET?: string;
-};
+export type TelegramEnv = Env;

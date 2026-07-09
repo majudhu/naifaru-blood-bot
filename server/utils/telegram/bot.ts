@@ -6,9 +6,7 @@ import {
   createBloodRequest,
   findMatchingTelegramUsers,
   findUserByTelegramId,
-  isBlacklisted,
   isBloodType,
-  normalizePhone,
   recordChannelMessage,
   upsertTelegramContactUser,
 } from "./services";
@@ -39,17 +37,6 @@ async function registeredUser(ctx: TelegramContext, db: AppDb) {
     return undefined;
   }
 
-  if (
-    await isBlacklisted(db, {
-      phone: user.phone,
-      telegramUserId,
-      username: user.telegramUsername,
-    })
-  ) {
-    await ctx.reply("Access denied. Please contact an administrator.");
-    return undefined;
-  }
-
   return user;
 }
 
@@ -77,7 +64,7 @@ async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
   const result = await acceptHelpOffer(db, { donorTelegramUserId, requestId });
   if (result.status !== "not_registered") ctx.session.pendingHelpRequestId = undefined;
 
-  if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => {});
+  if (ctx.callbackQuery) await ctx.answerCallbackQuery();
 
   switch (result.status) {
     case "accepted":
@@ -100,9 +87,6 @@ async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
     case "already_accepted":
       if (result.requester) await ctx.reply(formatRequesterContact(result.requester), html);
       else await ctx.reply("You have already offered to help this request.");
-      return;
-    case "blacklisted":
-      await ctx.reply("Access denied. Please contact an administrator.");
       return;
     case "cooldown":
       await ctx.reply("You are still in the donation cooldown window.");
@@ -140,7 +124,11 @@ async function tryPendingHelp(ctx: TelegramContext, db: AppDb) {
   await offerHelp(ctx, db, requestId);
 }
 
-export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) {
+export function createTelegramBot(input: {
+  config: TelegramConfig;
+  db: AppDb;
+  waitUntil: (promise: Promise<unknown>) => void;
+}) {
   const bot = new Bot<TelegramContext>(input.config.botToken, {
     botInfo: input.config.botInfo,
   });
@@ -191,18 +179,6 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
       return;
     }
 
-    const phone = normalizePhone(contact.phone_number);
-    if (
-      await isBlacklisted(input.db, {
-        phone,
-        telegramUserId: from.id,
-        username: from.username,
-      })
-    ) {
-      await ctx.reply("Access denied. Please contact an administrator.");
-      return;
-    }
-
     await upsertTelegramContactUser(input.db, contact, from);
     await ctx.reply("Registration saved.", { reply_markup: mainMenuKeyboard() });
     await tryPendingHelp(ctx, input.db);
@@ -224,45 +200,41 @@ export function createTelegramBot(input: { config: TelegramConfig; db: AppDb }) 
       bloodType,
     });
 
-    if (input.config.channelId) {
-      const message = await ctx.api.sendMessage(
-        input.config.channelId,
-        formatChannelRequest(request),
-        {
-          ...html,
-          reply_markup: helpKeyboard(request.id, input.config.botUsername),
-        },
-      );
-
-      await recordChannelMessage(input.db, request.id, {
-        chatId: message.chat.id,
-        messageId: message.message_id,
-      });
-    }
-
-    const matchingUsers = await findMatchingTelegramUsers(input.db, {
-      bloodType,
-      requesterId: user.id,
-    });
-    await Promise.allSettled(
-      matchingUsers.map((matchingUser) => {
-        const username = matchingUser.telegramUsername?.trim();
-        const chatId =
-          matchingUser.telegramUserId ??
-          (username ? (username.startsWith("@") ? username : `@${username}`) : undefined);
-        if (!chatId) return Promise.resolve();
-
-        return ctx.api.sendMessage(chatId, formatMatchingRequestNotification(user, request), {
-          ...html,
-          reply_markup: helpKeyboard(request.id, input.config.botUsername),
-        });
-      }),
+    const message = await ctx.api.sendMessage(
+      input.config.channelId,
+      formatChannelRequest(request),
+      {
+        ...html,
+        reply_markup: helpKeyboard(request.id, input.config.botUsername),
+      },
     );
 
+    await recordChannelMessage(input.db, request.id, {
+      chatId: message.chat.id,
+      messageId: message.message_id,
+    });
+
+    const notificationPromise = findMatchingTelegramUsers(input.db, {
+      bloodType,
+      requesterId: user.id,
+    }).then((matchingUsers) =>
+      Promise.all(
+        matchingUsers.map((matchingUser) => {
+          const chatId =
+            matchingUser.telegramUserId ??
+            `@${matchingUser.telegramUsername!.trim().replace(/^@/, "")}`;
+
+          return ctx.api.sendMessage(chatId, formatMatchingRequestNotification(user, request), {
+            ...html,
+            reply_markup: helpKeyboard(request.id, input.config.botUsername),
+          });
+        }),
+      ),
+    );
+    input.waitUntil(notificationPromise);
+
     await ctx.reply(
-      input.config.channelId
-        ? "Request sent to the channel. We will notify you when a donor offers to help."
-        : "Request recorded. Telegram channel posting is not configured.",
+      "Request sent to the channel. We will notify you when a donor offers to help.",
       { reply_markup: mainMenuKeyboard() },
     );
   });

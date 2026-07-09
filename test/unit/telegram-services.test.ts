@@ -47,8 +47,7 @@ beforeEach(() => {
 });
 
 describe("Telegram webhook security", () => {
-  it("accepts missing expected secrets and rejects mismatches", () => {
-    expect(() => assertTelegramWebhookSecret(undefined, undefined)).not.toThrow();
+  it("accepts matching webhook secrets and rejects mismatches", () => {
     expect(() => assertTelegramWebhookSecret("secret", "secret")).not.toThrow();
 
     try {
@@ -206,7 +205,6 @@ describe("Telegram donor matching", () => {
     };
 
     db.queueSelect([donor]);
-    db.queueSelect([]);
     db.queueSelect([request]);
     db.queueSelect([requester]);
     db.queueSelect([]);
@@ -248,7 +246,6 @@ describe("Telegram donor matching", () => {
       userId: null,
     };
     wrongDb.queueSelect([donor]);
-    wrongDb.queueSelect([]);
     wrongDb.queueSelect([request]);
 
     await expect(
@@ -259,7 +256,6 @@ describe("Telegram donor matching", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-03"));
     cooldownDb.queueSelect([user({ lastDonatedAt: new Date("2026-06-01"), telegramUserId: 100 })]);
-    cooldownDb.queueSelect([]);
     cooldownDb.queueSelect([request]);
 
     await expect(
@@ -269,7 +265,6 @@ describe("Telegram donor matching", () => {
     const duplicateDb = dbMock();
     const duplicateDonor = user({ telegramUserId: 100 });
     duplicateDb.queueSelect([duplicateDonor]);
-    duplicateDb.queueSelect([]);
     duplicateDb.queueSelect([request]);
     duplicateDb.queueSelect([{ donorId: duplicateDonor.id, requestId: request.id }]);
 

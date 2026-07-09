@@ -1,8 +1,7 @@
-import { and, eq, isNotNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNotNull, ne, or, sql } from "drizzle-orm";
 
 import { bloodTypeValues, DAY_MS, EPOCH_STRING } from "../../../shared/utils/const";
 import {
-  blacklist,
   bloodRequests,
   donorResponses,
   users,
@@ -30,7 +29,6 @@ export type TelegramUserInput = {
 export type HelpOfferResult =
   | { status: "accepted"; donor: User; request: BloodRequest; requester?: User }
   | { status: "already_accepted"; donor: User; request: BloodRequest; requester?: User }
-  | { status: "blacklisted" }
   | { status: "cooldown"; donor: User }
   | { status: "not_registered" }
   | { status: "profile_incomplete"; donor: User }
@@ -81,30 +79,6 @@ export async function findUserByTelegramId(db: AppDb, telegramUserId: number) {
     .limit(1);
 
   return user;
-}
-
-export async function isBlacklisted(
-  db: AppDb,
-  input: { phone?: string | null; telegramUserId?: number; username?: string | null },
-) {
-  const conditions: SQL[] = [];
-
-  if (input.phone) conditions.push(eq(blacklist.phone, input.phone));
-  if (input.telegramUserId) conditions.push(eq(blacklist.telegram, String(input.telegramUserId)));
-  if (input.username) {
-    conditions.push(eq(blacklist.telegram, input.username));
-    conditions.push(eq(blacklist.telegram, `@${input.username}`));
-  }
-
-  if (!conditions.length) return false;
-
-  const [row] = await db
-    .select({ phone: blacklist.phone })
-    .from(blacklist)
-    .where(conditions.length === 1 ? conditions[0] : or(...conditions))
-    .limit(1);
-
-  return Boolean(row);
 }
 
 export async function upsertTelegramContactUser(
@@ -182,7 +156,7 @@ export async function createBloodRequest(db: AppDb, user: User, input: { bloodTy
     .insert(bloodRequests)
     .values({
       bloodType: input.bloodType,
-      island: user.island || "",
+      island: user.island,
       location: "",
       notes: "",
       status: "open",
@@ -237,15 +211,6 @@ export async function acceptHelpOffer(
 ): Promise<HelpOfferResult> {
   const donor = await findUserByTelegramId(db, input.donorTelegramUserId);
   if (!donor) return { status: "not_registered" };
-
-  if (
-    await isBlacklisted(db, {
-      phone: donor.phone,
-      telegramUserId: input.donorTelegramUserId,
-      username: donor.telegramUsername,
-    })
-  )
-    return { status: "blacklisted" };
 
   const [request] = await db
     .select()

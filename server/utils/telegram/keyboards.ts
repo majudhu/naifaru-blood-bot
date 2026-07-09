@@ -26,13 +26,9 @@ export function bloodRequestKeyboard() {
   return keyboard;
 }
 
-export function helpKeyboard(requestId: number, botUsername?: string) {
-  if (botUsername) {
-    return new InlineKeyboard().url(
-      "I Can Help",
-      `https://t.me/${botUsername}?start=help_${requestId}`,
-    );
-  }
-
-  return new InlineKeyboard().text("I Can Help", `help:${requestId}`);
+export function helpKeyboard(requestId: number, botUsername: string) {
+  return new InlineKeyboard().url(
+    "I Can Help",
+    `https://t.me/${botUsername}?start=help_${requestId}`,
+  );
 }
