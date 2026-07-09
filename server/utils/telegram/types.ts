@@ -7,23 +7,7 @@ import type { bloodTypeValues } from "../../../shared/utils/const";
 export type AppDb = DrizzleD1Database<typeof schema>;
 export type BloodType = Exclude<(typeof bloodTypeValues)[number], "">;
 
-export type RequestDraft = {
-  bloodType: BloodType;
-  location?: string;
-  unitsNeeded?: number;
-};
-
-export type BotFlow =
-  | { kind: "request_location"; draft: RequestDraft }
-  | { kind: "request_units"; draft: RequestDraft }
-  | { kind: "request_urgent"; draft: RequestDraft }
-  | { kind: "profile_nid" }
-  | { kind: "profile_dob" }
-  | { kind: "profile_address" }
-  | { kind: "profile_island" };
-
 export type TelegramSession = {
-  flow?: BotFlow;
   pendingHelpRequestId?: number;
 };
 

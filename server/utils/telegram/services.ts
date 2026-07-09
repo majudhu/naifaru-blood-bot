@@ -11,7 +11,7 @@ import {
   type User,
 } from "../../schema";
 import { epochDate } from "./format";
-import type { AppDb, BloodType, RequestDraft } from "./types";
+import type { AppDb, BloodType } from "./types";
 
 export type TelegramContactInput = {
   first_name?: string;
@@ -57,13 +57,13 @@ function dateValue(value: Date | number | null | undefined) {
 export function isCompleteDonorProfile(user: User) {
   return Boolean(
     user.bloodType &&
-      user.phone &&
-      user.nid &&
-      user.sex &&
-      user.address &&
-      user.island &&
-      user.isAvailable &&
-      dateValue(user.dob).getTime() !== epochDate.getTime(),
+    user.phone &&
+    user.nid &&
+    user.sex &&
+    user.address &&
+    user.island &&
+    user.isAvailable &&
+    dateValue(user.dob).getTime() !== epochDate.getTime(),
   );
 }
 
@@ -128,10 +128,7 @@ export async function upsertTelegramContactUser(
   };
 
   if (existingByTelegram) {
-    await db
-      .update(users)
-      .set(updateValues)
-      .where(eq(users.id, existingByTelegram.id));
+    await db.update(users).set(updateValues).where(eq(users.id, existingByTelegram.id));
 
     return {
       ...existingByTelegram,
@@ -142,11 +139,7 @@ export async function upsertTelegramContactUser(
     };
   }
 
-  const [existingByPhone] = await db
-    .select()
-    .from(users)
-    .where(eq(users.phone, phone))
-    .limit(1);
+  const [existingByPhone] = await db.select().from(users).where(eq(users.phone, phone)).limit(1);
 
   if (existingByPhone) {
     await db
@@ -184,59 +177,17 @@ export async function upsertTelegramContactUser(
   return created;
 }
 
-export async function updateUserBloodType(db: AppDb, userId: number, bloodType: BloodType) {
-  await db
-    .update(users)
-    .set({ bloodType, updatedAt: sql`unixepoch()` })
-    .where(eq(users.id, userId));
-}
-
-export async function updateUserSex(db: AppDb, userId: number, sex: "m" | "f") {
-  await db
-    .update(users)
-    .set({ sex, updatedAt: sql`unixepoch()` })
-    .where(eq(users.id, userId));
-}
-
-export async function updateUserAvailability(db: AppDb, userId: number, isAvailable: boolean) {
-  await db
-    .update(users)
-    .set({ isAvailable, updatedAt: sql`unixepoch()` })
-    .where(eq(users.id, userId));
-}
-
-export async function updateUserTextField(
-  db: AppDb,
-  userId: number,
-  field: "address" | "island" | "nid",
-  value: string,
-) {
-  await db
-    .update(users)
-    .set({ [field]: value, updatedAt: sql`unixepoch()` })
-    .where(eq(users.id, userId));
-}
-
-export async function updateUserDob(db: AppDb, userId: number, dob: Date) {
-  await db
-    .update(users)
-    .set({ dob, updatedAt: sql`unixepoch()` })
-    .where(eq(users.id, userId));
-}
-
-export async function createBloodRequest(db: AppDb, user: User, draft: Required<RequestDraft> & {
-  urgent: boolean;
-}) {
+export async function createBloodRequest(db: AppDb, user: User, input: { bloodType: BloodType }) {
   const [request] = await db
     .insert(bloodRequests)
     .values({
-      bloodType: draft.bloodType,
+      bloodType: input.bloodType,
       island: user.island || "",
-      location: draft.location,
+      location: "",
       notes: "",
       status: "open",
-      unitsNeeded: draft.unitsNeeded,
-      urgent: draft.urgent,
+      unitsNeeded: 1,
+      urgent: false,
       userId: user.id,
     })
     .returning();

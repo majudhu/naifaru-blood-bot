@@ -120,14 +120,14 @@ describe("Telegram blood requests", () => {
       createdAt: new Date("2026-01-01"),
       id: 21,
       island: "Naifaru",
-      location: "Naifaru Health Centre",
+      location: "",
       notes: "",
       status: "open" as const,
       telegramChatId: null,
       telegramMessageId: null,
-      unitsNeeded: 2,
+      unitsNeeded: 1,
       updatedAt: new Date("2026-01-01"),
-      urgent: true,
+      urgent: false,
       userId: requester.id,
     };
     const insert = db.queueInsert([request]);
@@ -135,24 +135,24 @@ describe("Telegram blood requests", () => {
     await expect(
       createBloodRequest(db, requester, {
         bloodType: "O+",
-        location: "Naifaru Health Centre",
-        unitsNeeded: 2,
-        urgent: true,
       }),
     ).resolves.toEqual(request);
 
     expect(insert.values).toHaveBeenCalledWith(
       expect.objectContaining({
         bloodType: "O+",
-        location: "Naifaru Health Centre",
-        unitsNeeded: 2,
-        urgent: true,
+        location: "",
+        unitsNeeded: 1,
+        urgent: false,
         userId: requester.id,
       }),
     );
 
     const channelText = formatChannelRequest(request);
-    expect(channelText).toContain("Naifaru Health Centre");
+    expect(channelText).toContain("Blood group: <b>O+</b>");
+    expect(channelText).not.toContain("Location");
+    expect(channelText).not.toContain("Units");
+    expect(channelText).not.toContain("Urgent");
     expect(channelText).not.toContain("9991111");
   });
 });

@@ -14,37 +14,10 @@ export function formatPhoneLink(phone: string | null) {
   return phone ? `<code>${escapeHtml(phone)}</code>` : "not provided";
 }
 
-export function formatChannelRequest(request: Pick<
-  BloodRequest,
-  "bloodType" | "location" | "unitsNeeded" | "urgent"
->) {
-  return [
-    "<b>BLOOD REQUEST</b>",
-    `Type: <b>${escapeHtml(request.bloodType)}</b>`,
-    `Location: ${escapeHtml(request.location || "Not specified")}`,
-    `Units: ${request.unitsNeeded}`,
-    `Urgent: ${request.urgent ? "Yes" : "No"}`,
-  ].join("\n");
-}
-
-export function formatProfile(user: User) {
-  const dob =
-    user.dob.getTime() === epochDate.getTime()
-      ? "Not set"
-      : user.dob.toISOString().slice(0, 10);
-
-  return [
-    "<b>Your Profile</b>",
-    `Name: ${escapeHtml(user.name)}`,
-    `Phone: ${formatPhoneLink(user.phone ?? null)}`,
-    `Blood Type: ${escapeHtml(user.bloodType || "Not set")}`,
-    `Sex: ${user.sex === "m" ? "Male" : user.sex === "f" ? "Female" : "Not set"}`,
-    `NID: ${escapeHtml(user.nid || "Not set")}`,
-    `DOB: ${dob}`,
-    `Address: ${escapeHtml(user.address || "Not set")}`,
-    `Island: ${escapeHtml(user.island || "Not set")}`,
-    `Donor Available: ${user.isAvailable ? "Yes" : "No"}`,
-  ].join("\n");
+export function formatChannelRequest(request: Pick<BloodRequest, "bloodType">) {
+  return ["<b>BLOOD REQUEST</b>", `Blood group: <b>${escapeHtml(request.bloodType)}</b>`].join(
+    "\n",
+  );
 }
 
 export function formatDonorContact(donor: User) {
