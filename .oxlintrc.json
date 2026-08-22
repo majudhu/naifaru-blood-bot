@@ -1,10 +1,23 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "ignorePatterns": [
+    ".agents/**",
+    ".cache/**",
+    ".codex/**",
+    ".data/**",
+    ".dev.vars*",
+    ".nitro/**",
     ".nuxt/**",
     ".output/**",
     ".wrangler/**",
+    "_cloudflare/**",
     "coverage/**",
+    "dist/**",
+    "drizzle/**",
+    "dump*.sql",
+    "node_modules/**",
+    "pnpm-lock.yaml",
+    "skills-lock.json",
     "worker-configuration.d.ts"
   ],
   "plugins": ["typescript", "unicorn", "oxc", "vue", "vitest"],
