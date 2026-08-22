@@ -5,12 +5,14 @@ import type { User } from "../../server/schema";
 import {
   acceptHelpOffer,
   createBloodRequest,
-  findMatchingTelegramUsers,
+  findReadyDonors,
   upsertTelegramContactUser,
 } from "../../server/utils/telegram/services";
 import {
   formatChannelRequest,
+  formatDonorContact,
   formatMatchingRequestNotification,
+  formatReadyDonors,
 } from "../../server/utils/telegram/format";
 import { assertTelegramWebhookSecret } from "../../server/utils/telegram/config";
 import { markTelegramUpdateProcessed } from "../../server/utils/telegram/storage";
@@ -162,31 +164,80 @@ describe("Telegram blood requests", () => {
     expect(notificationText).toContain("Requester: Aisha");
     expect(notificationText).toContain("Blood group: <b>O+</b>");
     expect(notificationText).toContain("Phone: <code>9991111</code>");
+
+    const readyDonorText = formatReadyDonors(
+      [
+        user({ name: "Fathimath & Ali", phone: "7772222" }),
+        user({ name: "Hassan", phone: "9993333" }),
+      ],
+      request,
+    );
+    expect(readyDonorText).toContain("Available and ready O+ donors");
+    expect(readyDonorText).toContain("1. Fathimath &amp; Ali\nMobile: <code>7772222</code>");
+    expect(readyDonorText).toContain("2. Hassan\nMobile: <code>9993333</code>");
+    expect(formatReadyDonors([], request)).toContain(
+      "No available and ready donors were found for <b>O+</b>.",
+    );
+
+    const offerText = formatDonorContact(
+      user({ name: "New Helper", phone: "7778888", telegramUsername: null }),
+    );
+    expect(offerText).toContain("A donor offered to help.");
+    expect(offerText).toContain("Name: New Helper");
+    expect(offerText).toContain("Phone: <code>7778888</code>");
   });
 
-  it("finds available Telegram-known users with the matching blood group", async () => {
+  it("finds ready donors with mobile and Telegram contact details in one query", async () => {
     const db = dbMock();
-    const matchingUsers = [
-      user({ id: 4, telegramUserId: 444, telegramUsername: null }),
-      user({ id: 5, telegramUserId: null, telegramUsername: "donor" }),
+    const readyDonors = [
+      {
+        name: "Aisha",
+        phone: "7771234",
+        telegramUserId: 444,
+        telegramUsername: null,
+      },
+      {
+        name: "Hassan",
+        phone: "9991234",
+        telegramUserId: null,
+        telegramUsername: "donor",
+      },
+      {
+        name: "Fathimath",
+        phone: "7779999",
+        telegramUserId: null,
+        telegramUsername: null,
+      },
     ];
-    const select = db.queueSelect(matchingUsers);
+    const select = db.queueSelect(readyDonors);
 
     await expect(
-      findMatchingTelegramUsers(db, {
+      findReadyDonors(db, {
         bloodType: "O+",
         requesterId: 3,
       }),
-    ).resolves.toEqual(matchingUsers);
+    ).resolves.toEqual(readyDonors);
 
     expect(select.where).toHaveBeenCalledTimes(1);
+    expect(select.orderBy).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("Telegram donor matching", () => {
-  it("accepts a compatible donor and records the donor response", async () => {
+  it("accepts any registered contact regardless of donor eligibility", async () => {
     const db = dbMock();
-    const donor = user({ id: 10, telegramUserId: 100 });
+    const donor = user({
+      address: "",
+      bloodType: "A+",
+      dob: new Date("1970-01-01"),
+      id: 10,
+      island: "",
+      isAvailable: false,
+      lastDonatedAt: new Date("2099-01-01"),
+      nid: null,
+      sex: "",
+      telegramUserId: 100,
+    });
     const requester = user({ id: 11, name: "Mohamed", telegramUserId: 200 });
     const request = {
       bloodType: "O+" as const,
@@ -227,9 +278,7 @@ describe("Telegram donor matching", () => {
     });
   });
 
-  it("rejects wrong blood type, cooldown, duplicates, and missing registrations", async () => {
-    const wrongDb = dbMock();
-    const donor = user({ bloodType: "A+", telegramUserId: 100 });
+  it("requests a mobile number, handles duplicates, and identifies unregistered users", async () => {
     const request = {
       bloodType: "O+" as const,
       createdAt: new Date("2026-01-01"),
@@ -245,22 +294,14 @@ describe("Telegram donor matching", () => {
       urgent: false,
       userId: null,
     };
-    wrongDb.queueSelect([donor]);
-    wrongDb.queueSelect([request]);
+
+    const missingPhoneDb = dbMock();
+    missingPhoneDb.queueSelect([user({ phone: null, telegramUserId: 100 })]);
+    missingPhoneDb.queueSelect([request]);
 
     await expect(
-      acceptHelpOffer(wrongDb, { donorTelegramUserId: 100, requestId: request.id }),
-    ).resolves.toMatchObject({ status: "wrong_blood_type" });
-
-    const cooldownDb = dbMock();
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-03"));
-    cooldownDb.queueSelect([user({ lastDonatedAt: new Date("2026-06-01"), telegramUserId: 100 })]);
-    cooldownDb.queueSelect([request]);
-
-    await expect(
-      acceptHelpOffer(cooldownDb, { donorTelegramUserId: 100, requestId: request.id }),
-    ).resolves.toMatchObject({ status: "cooldown" });
+      acceptHelpOffer(missingPhoneDb, { donorTelegramUserId: 100, requestId: request.id }),
+    ).resolves.toMatchObject({ status: "profile_incomplete" });
 
     const duplicateDb = dbMock();
     const duplicateDonor = user({ telegramUserId: 100 });

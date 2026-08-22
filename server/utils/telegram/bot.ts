@@ -4,7 +4,7 @@ import { bloodRequestKeyboard, contactKeyboard, helpKeyboard, mainMenuKeyboard }
 import {
   acceptHelpOffer,
   createBloodRequest,
-  findMatchingTelegramUsers,
+  findReadyDonors,
   findUserByTelegramId,
   isBloodType,
   recordChannelMessage,
@@ -15,6 +15,7 @@ import {
   formatChannelRequest,
   formatDonorContact,
   formatMatchingRequestNotification,
+  formatReadyDonors,
   formatRequesterContact,
 } from "./format";
 import type { AppDb, TelegramConfig, TelegramContext, TelegramSession } from "./types";
@@ -62,7 +63,9 @@ async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
 
   ctx.session.pendingHelpRequestId = requestId;
   const result = await acceptHelpOffer(db, { donorTelegramUserId, requestId });
-  if (result.status !== "not_registered") ctx.session.pendingHelpRequestId = undefined;
+  if (result.status !== "not_registered" && result.status !== "profile_incomplete") {
+    ctx.session.pendingHelpRequestId = undefined;
+  }
 
   if (ctx.callbackQuery) await ctx.answerCallbackQuery();
 
@@ -88,28 +91,17 @@ async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
       if (result.requester) await ctx.reply(formatRequesterContact(result.requester), html);
       else await ctx.reply("You have already offered to help this request.");
       return;
-    case "cooldown":
-      await ctx.reply("You are still in the donation cooldown window.");
-      return;
     case "not_registered":
-      ctx.session.pendingHelpRequestId = undefined;
       await promptForContact(ctx);
       return;
     case "profile_incomplete":
-      await ctx.reply("Your donor details are not ready for matching yet. Please contact staff.", {
-        reply_markup: mainMenuKeyboard(),
-      });
+      await promptForContact(ctx);
       return;
     case "request_closed":
       await ctx.reply("This request is no longer open.");
       return;
     case "request_not_found":
       await ctx.reply("This request could not be found.");
-      return;
-    case "wrong_blood_type":
-      await ctx.reply(
-        `This request needs ${result.request.bloodType}, but your registered blood group is ${result.donor.bloodType}.`,
-      );
       return;
   }
 }
@@ -214,29 +206,32 @@ export function createTelegramBot(input: {
       messageId: message.message_id,
     });
 
-    const notificationPromise = findMatchingTelegramUsers(input.db, {
+    const donorMatch = {
       bloodType,
       requesterId: user.id,
-    }).then((matchingUsers) =>
-      Promise.all(
-        matchingUsers.map((matchingUser) => {
-          const chatId =
-            matchingUser.telegramUserId ??
-            `@${matchingUser.telegramUsername!.trim().replace(/^@/, "")}`;
+    };
+    const readyDonors = await findReadyDonors(input.db, donorMatch);
+    const notificationPromise = Promise.all(
+      readyDonors.flatMap((donor) => {
+        const telegramUsername = donor.telegramUsername?.trim().replace(/^@/, "");
+        const chatId =
+          donor.telegramUserId ?? (telegramUsername ? `@${telegramUsername}` : undefined);
+        if (chatId === undefined) return [];
 
-          return ctx.api.sendMessage(chatId, formatMatchingRequestNotification(user, request), {
+        return [
+          ctx.api.sendMessage(chatId, formatMatchingRequestNotification(user, request), {
             ...html,
             reply_markup: helpKeyboard(request.id, input.config.botUsername),
-          });
-        }),
-      ),
+          }),
+        ];
+      }),
     );
     input.waitUntil(notificationPromise);
 
-    await ctx.reply(
-      "Request sent to the channel. We will notify you when a donor offers to help.",
-      { reply_markup: mainMenuKeyboard() },
-    );
+    await ctx.reply(formatReadyDonors(readyDonors, request), {
+      ...html,
+      reply_markup: mainMenuKeyboard(),
+    });
   });
 
   bot.callbackQuery(/^help:(\d+)$/, async (ctx) => {

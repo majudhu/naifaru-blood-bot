@@ -6,7 +6,7 @@ import type { BloodType } from "./types";
 const bloodTypes = bloodTypeValues.filter(Boolean) as BloodType[];
 
 export function mainMenuKeyboard() {
-  return new Keyboard().text("Request Blood").resized().persistent();
+  return new Keyboard().text("Request Blood").danger().resized().persistent();
 }
 
 export function contactKeyboard() {
