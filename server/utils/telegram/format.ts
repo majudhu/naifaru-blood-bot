@@ -25,7 +25,7 @@ export function formatMatchingRequestNotification(
   request: Pick<BloodRequest, "bloodType">,
 ) {
   return [
-    "<b>Matching blood request</b>",
+    "<b>Someone needs blood — can you help?</b>",
     `Requester: ${escapeHtml(requester.name)}`,
     `Blood group: <b>${escapeHtml(request.bloodType)}</b>`,
     `Phone: ${formatPhoneLink(requester.phone ?? null)}`,

@@ -8,6 +8,7 @@ export type AppDb = DrizzleD1Database<typeof schema>;
 export type BloodType = Exclude<(typeof bloodTypeValues)[number], "">;
 
 export type TelegramSession = {
+  pendingBloodRequest?: boolean;
   pendingHelpRequestId?: number;
 };
 

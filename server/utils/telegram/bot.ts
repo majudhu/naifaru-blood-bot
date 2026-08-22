@@ -42,8 +42,18 @@ async function registeredUser(ctx: TelegramContext, db: AppDb) {
 }
 
 async function startRequest(ctx: TelegramContext, db: AppDb) {
+  if (ctx.session.pendingHelpRequestId) {
+    await promptForContact(ctx);
+    return;
+  }
+
   const user = await registeredUser(ctx, db);
-  if (!user) return;
+  if (!user) {
+    ctx.session.pendingBloodRequest = true;
+    return;
+  }
+
+  ctx.session.pendingBloodRequest = undefined;
 
   await ctx.reply("Select the blood group you need.", {
     reply_markup: bloodRequestKeyboard(),
@@ -54,6 +64,7 @@ async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
   const donorTelegramUserId = ctx.from?.id;
   if (!donorTelegramUserId) return;
 
+  ctx.session.pendingBloodRequest = undefined;
   const donor = await findUserByTelegramId(db, donorTelegramUserId);
   if (!donor) {
     ctx.session.pendingHelpRequestId = requestId;
@@ -173,7 +184,19 @@ export function createTelegramBot(input: {
 
     await upsertTelegramContactUser(input.db, contact, from);
     await ctx.reply("Registration saved.", { reply_markup: mainMenuKeyboard() });
-    await tryPendingHelp(ctx, input.db);
+
+    if (ctx.session.pendingHelpRequestId) {
+      ctx.session.pendingBloodRequest = undefined;
+      await tryPendingHelp(ctx, input.db);
+      return;
+    }
+
+    if (ctx.session.pendingBloodRequest) {
+      ctx.session.pendingBloodRequest = undefined;
+      await ctx.reply("Select the blood group you need.", {
+        reply_markup: bloodRequestKeyboard(),
+      });
+    }
   });
 
   bot.callbackQuery(/^request:type:(.+)$/, async (ctx) => {
@@ -185,8 +208,18 @@ export function createTelegramBot(input: {
 
     await ctx.answerCallbackQuery();
 
+    if (ctx.session.pendingHelpRequestId) {
+      await promptForContact(ctx);
+      return;
+    }
+
     const user = await registeredUser(ctx, input.db);
-    if (!user) return;
+    if (!user) {
+      ctx.session.pendingBloodRequest = true;
+      return;
+    }
+
+    ctx.session.pendingBloodRequest = undefined;
 
     const request = await createBloodRequest(input.db, user, {
       bloodType,
@@ -228,10 +261,16 @@ export function createTelegramBot(input: {
     );
     input.waitUntil(notificationPromise);
 
-    await ctx.reply(formatReadyDonors(readyDonors, request), {
-      ...html,
-      reply_markup: mainMenuKeyboard(),
-    });
+    await ctx.reply(
+      [
+        'Request sent to channel <a href="https://t.me/naifarudonors">@naifarudonors</a>',
+        formatReadyDonors(readyDonors, request),
+      ].join("\n\n"),
+      {
+        ...html,
+        reply_markup: mainMenuKeyboard(),
+      },
+    );
   });
 
   bot.callbackQuery(/^help:(\d+)$/, async (ctx) => {
@@ -239,9 +278,7 @@ export function createTelegramBot(input: {
     await offerHelp(ctx, input.db, requestId);
   });
 
-  bot.on("message:text", async (ctx) => {
-    await ctx.reply("Choose an option from the menu.", { reply_markup: mainMenuKeyboard() });
-  });
+  bot.on("message:text", (ctx) => startRequest(ctx, input.db));
 
   bot.on("callback_query:data", async (ctx) => {
     await ctx.answerCallbackQuery({ text: "This action is no longer available." });

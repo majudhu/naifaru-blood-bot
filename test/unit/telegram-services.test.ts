@@ -161,6 +161,7 @@ describe("Telegram blood requests", () => {
     expect(channelText).not.toContain("9991111");
 
     const notificationText = formatMatchingRequestNotification(requester, request);
+    expect(notificationText).toContain("<b>Someone needs blood — can you help?</b>");
     expect(notificationText).toContain("Requester: Aisha");
     expect(notificationText).toContain("Blood group: <b>O+</b>");
     expect(notificationText).toContain("Phone: <code>9991111</code>");
