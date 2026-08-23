@@ -7,6 +7,7 @@ import {
   findReadyDonors,
   findUserByTelegramId,
   isBloodType,
+  notifyDonors,
   recordChannelMessage,
   upsertTelegramContactUser,
 } from "./services";
@@ -14,7 +15,6 @@ import { createD1SessionStorage, markTelegramUpdateProcessed } from "./storage";
 import {
   formatChannelRequest,
   formatDonorContact,
-  formatMatchingRequestNotification,
   formatReadyDonors,
   formatRequesterContact,
 } from "./format";
@@ -248,20 +248,12 @@ export function createTelegramBot(input: {
     const readyDonors = await findReadyDonors(input.db, donorMatch);
 
     input.waitUntil(
-      Promise.all(
-        // oxlint-disable-next-line typescript/await-thenable
-        readyDonors.map((donor) => {
-          const telegramUsername = donor.telegramUsername?.trim()?.replace(/^@/, "");
-          const chatId =
-            donor.telegramUserId ?? (telegramUsername ? `@${telegramUsername}` : undefined);
-          if (chatId)
-            return ctx.api
-              .sendMessage(chatId, formatMatchingRequestNotification(user, request), {
-                ...html,
-                reply_markup: helpKeyboard(request.id, input.config.botUsername),
-              })
-              .catch(console.error);
-        }),
+      notifyDonors(
+        ctx,
+        input.config,
+        readyDonors,
+        request,
+        formatMatchingRequestNotification(user, request),
       ),
     );
 
