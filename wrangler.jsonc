@@ -16,6 +16,7 @@
   },
   "upload_source_maps": true,
   "compatibility_flags": ["nodejs_compat"],
+  "account_id": "9caefeae639db03912299d2f6af0493d",
 
   "d1_databases": [
     {
