@@ -183,7 +183,9 @@ export function createTelegramBot(input: {
     }
 
     await upsertTelegramContactUser(input.db, contact, from);
-    await ctx.reply("Registration saved.", { reply_markup: mainMenuKeyboard() });
+    await ctx.reply("Registration saved.", {
+      reply_markup: mainMenuKeyboard(),
+    });
 
     if (ctx.session.pendingHelpRequestId) {
       ctx.session.pendingBloodRequest = undefined;
@@ -244,22 +246,24 @@ export function createTelegramBot(input: {
       requesterId: user.id,
     };
     const readyDonors = await findReadyDonors(input.db, donorMatch);
-    const notificationPromise = Promise.all(
-      readyDonors.flatMap((donor) => {
-        const telegramUsername = donor.telegramUsername?.trim().replace(/^@/, "");
-        const chatId =
-          donor.telegramUserId ?? (telegramUsername ? `@${telegramUsername}` : undefined);
-        if (chatId === undefined) return [];
 
-        return [
-          ctx.api.sendMessage(chatId, formatMatchingRequestNotification(user, request), {
-            ...html,
-            reply_markup: helpKeyboard(request.id, input.config.botUsername),
-          }),
-        ];
-      }),
+    input.waitUntil(
+      Promise.all(
+        // oxlint-disable-next-line typescript/await-thenable
+        readyDonors.map((donor) => {
+          const telegramUsername = donor.telegramUsername?.trim()?.replace(/^@/, "");
+          const chatId =
+            donor.telegramUserId ?? (telegramUsername ? `@${telegramUsername}` : undefined);
+          if (chatId)
+            return ctx.api
+              .sendMessage(chatId, formatMatchingRequestNotification(user, request), {
+                ...html,
+                reply_markup: helpKeyboard(request.id, input.config.botUsername),
+              })
+              .catch(console.error);
+        }),
+      ),
     );
-    input.waitUntil(notificationPromise);
 
     await ctx.reply(
       [
@@ -281,7 +285,9 @@ export function createTelegramBot(input: {
   bot.on("message:text", (ctx) => startRequest(ctx, input.db));
 
   bot.on("callback_query:data", async (ctx) => {
-    await ctx.answerCallbackQuery({ text: "This action is no longer available." });
+    await ctx.answerCallbackQuery({
+      text: "This action is no longer available.",
+    });
   });
 
   return bot;

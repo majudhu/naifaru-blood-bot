@@ -37,11 +37,11 @@ export function formatReadyDonors(
   request: Pick<BloodRequest, "bloodType">,
 ) {
   if (donors.length === 0) {
-    return `No available and ready donors were found for <b>${escapeHtml(request.bloodType)}</b>.`;
+    return `No available donors were found for <b>${escapeHtml(request.bloodType)}</b>.`;
   }
 
   return [
-    `<b>Available and ready ${escapeHtml(request.bloodType)} donors</b>`,
+    `<b>Available ${escapeHtml(request.bloodType)} donors</b>`,
     ...donors.map(
       (donor, index) =>
         `${index + 1}. ${escapeHtml(donor.name)}\nMobile: ${formatPhoneLink(donor.phone)}`,
