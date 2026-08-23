@@ -1,5 +1,4 @@
 import { and, asc, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
-import { GrammyError, HttpError } from "grammy";
 import { bloodTypeValues, EPOCH_STRING } from "../../../shared/utils/const";
 import {
   bloodRequests,
@@ -9,7 +8,7 @@ import {
   type NewUser,
   type User,
 } from "../../schema";
-import type { AppDb, BloodType, TelegramConfig } from "./types";
+import type { AppDb, BloodType } from "./types";
 
 export type TelegramContactInput = {
   first_name?: string;
@@ -153,6 +152,7 @@ export async function findReadyDonors(
 ) {
   return await db
     .select({
+      id: users.id,
       name: users.name,
       phone: users.phone,
       telegramUserId: users.telegramUserId,
@@ -224,56 +224,4 @@ export async function acceptHelpOffer(
   });
 
   return { donor, request, requester, status: "accepted" };
-}
-
-export async function notifyDonors(
-  ctx: TelegramContext,
-  config: TelegramConfig,
-  donors: Pick<User, "name" | "telegramUserId" | "telegramUsername">[],
-  request: Pick<BloodRequest, "id">,
-  message: string,
-) {
-  for (const donor of donors) {
-    const telegramUsername = donor.telegramUsername?.trim()?.replace(/^@/, "");
-    const chatId = donor.telegramUserId ?? (telegramUsername ? `@${telegramUsername}` : undefined);
-
-    if (chatId)
-      try {
-        await ctx.api.sendMessage(chatId, message, {
-          parse_mode: "HTML",
-          reply_markup: helpKeyboard(request.id, config.botUsername),
-        });
-      } catch (e) {
-        logTelegramError(`Failed to notify ${donor.name}`, e);
-      }
-  }
-}
-
-function logTelegramError(event: string, error: unknown) {
-  if (error instanceof GrammyError) {
-    console.error({
-      event,
-      kind: "telegram_api",
-      errorCode: error.error_code,
-      description: error.description,
-      retryAfter: error.parameters.retry_after,
-    });
-    return;
-  }
-
-  if (error instanceof HttpError) {
-    console.error({
-      event,
-      kind: "network",
-      message: error.message,
-      cause: error.error instanceof Error ? error.error.message : String(error.error),
-    });
-    return;
-  }
-
-  console.error({
-    event,
-    kind: "unknown",
-    message: error instanceof Error ? error.message : String(error),
-  });
 }

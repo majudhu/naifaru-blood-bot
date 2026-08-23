@@ -12,7 +12,8 @@ import {
   formatChannelRequest,
   formatDonorContact,
   formatMatchingRequestNotification,
-  formatReadyDonors,
+  formatReadyDonorMessages,
+  TELEGRAM_MESSAGE_LENGTH_LIMIT,
 } from "../../server/utils/telegram/format";
 import { assertTelegramWebhookSecret } from "../../server/utils/telegram/config";
 import { markTelegramUpdateProcessed } from "../../server/utils/telegram/storage";
@@ -166,18 +167,18 @@ describe("Telegram blood requests", () => {
     expect(notificationText).toContain("Blood group: <b>O+</b>");
     expect(notificationText).toContain("Phone: <code>9991111</code>");
 
-    const readyDonorText = formatReadyDonors(
+    const [readyDonorText] = formatReadyDonorMessages(
       [
         user({ name: "Fathimath & Ali", phone: "7772222" }),
         user({ name: "Hassan", phone: "9993333" }),
       ],
       request,
     );
-    expect(readyDonorText).toContain("Available and ready O+ donors");
+    expect(readyDonorText).toContain("Available O+ donors");
     expect(readyDonorText).toContain("1. Fathimath &amp; Ali\nMobile: <code>7772222</code>");
     expect(readyDonorText).toContain("2. Hassan\nMobile: <code>9993333</code>");
-    expect(formatReadyDonors([], request)).toContain(
-      "No available and ready donors were found for <b>O+</b>.",
+    expect(formatReadyDonorMessages([], request)[0]).toContain(
+      "No available donors were found for <b>O+</b>.",
     );
 
     const offerText = formatDonorContact(
@@ -188,22 +189,68 @@ describe("Telegram blood requests", () => {
     expect(offerText).toContain("Phone: <code>7778888</code>");
   });
 
+  it("keeps adding donors while the message remains within Telegram's limit", () => {
+    const request = { bloodType: "O+" as const };
+    const donors = Array.from({ length: 51 }, (_, index) =>
+      user({
+        id: index + 1,
+        name: `Donor ${index + 1}`,
+        phone: `777${String(index).padStart(4, "0")}`,
+      }),
+    );
+
+    const messages = formatReadyDonorMessages(donors, request);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.match(/Mobile:/g)).toHaveLength(51);
+    expect(messages[0]).toContain("1. Donor 1");
+    expect(messages[0]).toContain("51. Donor 51");
+  });
+
+  it("starts a new batch before the Telegram character limit", () => {
+    const request = { bloodType: "O+" as const };
+    const donors = Array.from({ length: 50 }, (_, index) =>
+      user({
+        id: index + 1,
+        name: `Donor ${index + 1} ${"& long name ".repeat(8)}`,
+        phone: `777${String(index).padStart(4, "0")}`,
+      }),
+    );
+
+    const messages = formatReadyDonorMessages(donors, request);
+
+    expect(messages.length).toBeGreaterThan(1);
+    expect(messages.every((message) => message.length <= TELEGRAM_MESSAGE_LENGTH_LIMIT)).toBe(true);
+    expect(messages.join("\n")).toContain("1. Donor 1");
+    expect(messages.join("\n")).toContain("50. Donor 50");
+
+    const [pathologicalMessage] = formatReadyDonorMessages(
+      [user({ name: "&".repeat(5_000), phone: "7".repeat(5_000) })],
+      request,
+    );
+    expect(pathologicalMessage?.length).toBeLessThanOrEqual(TELEGRAM_MESSAGE_LENGTH_LIMIT);
+    expect(pathologicalMessage).toMatch(/…<\/code>$/);
+  });
+
   it("finds ready donors with mobile and Telegram contact details in one query", async () => {
     const db = dbMock();
     const readyDonors = [
       {
+        id: 1,
         name: "Aisha",
         phone: "7771234",
         telegramUserId: 444,
         telegramUsername: null,
       },
       {
+        id: 2,
         name: "Hassan",
         phone: "9991234",
         telegramUserId: null,
         telegramUsername: "donor",
       },
       {
+        id: 3,
         name: "Fathimath",
         phone: "7779999",
         telegramUserId: null,

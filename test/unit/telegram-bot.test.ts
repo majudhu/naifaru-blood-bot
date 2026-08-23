@@ -63,8 +63,32 @@ function contactUpdate(updateId: number): Update {
   };
 }
 
+function callbackUpdate(updateId: number, data: string): Update {
+  return {
+    callback_query: {
+      chat_instance: "test",
+      data,
+      from: { first_name: "Aisha", id: 12345, is_bot: false },
+      id: String(updateId),
+      message: {
+        chat: { first_name: "Aisha", id: 12345, type: "private" },
+        date: 0,
+        message_id: updateId,
+      },
+    },
+    update_id: updateId,
+  };
+}
+
 function testBot(db: ReturnType<typeof createDbMock>) {
   const calls: ApiCall[] = [];
+  const events: string[] = [];
+  const sendNotificationBatch = vi.fn<(...args: unknown[]) => Promise<void>>(async () => {
+    events.push("queue:sendBatch");
+  });
+  const notificationQueue = {
+    sendBatch: sendNotificationBatch,
+  } as unknown as Parameters<typeof createTelegramBot>[0]["notificationQueue"];
   const bot = createTelegramBot({
     config: {
       botInfo: {
@@ -88,11 +112,12 @@ function testBot(db: ReturnType<typeof createDbMock>) {
       webhookSecret: "secret",
     },
     db: db as unknown as AppDb,
-    waitUntil: vi.fn<(promise: Promise<unknown>) => void>(),
+    notificationQueue,
   });
 
   bot.api.config.use(async (_previous, method, payload) => {
     calls.push({ method, payload: payload as unknown as Record<string, unknown> });
+    events.push(`telegram:${method}`);
     return {
       ok: true,
       result: {
@@ -103,7 +128,7 @@ function testBot(db: ReturnType<typeof createDbMock>) {
     } as never;
   });
 
-  return { bot, calls };
+  return { bot, calls, events, sendNotificationBatch };
 }
 
 function sentTexts(calls: ApiCall[]) {
@@ -174,5 +199,55 @@ describe("Telegram text fallback", () => {
       "Registration saved.",
       "Select the blood group you need.",
     ]);
+  });
+
+  it("queues matching donor notifications when creating a blood request", async () => {
+    const db = createDbMock();
+    const requester = user({ id: 7 });
+    const request = {
+      bloodType: "O+" as const,
+      createdAt: new Date("2026-01-01"),
+      id: 21,
+      island: "Naifaru",
+      location: "",
+      notes: "",
+      status: "open" as const,
+      telegramChatId: null,
+      telegramMessageId: null,
+      unitsNeeded: 1,
+      updatedAt: new Date("2026-01-01"),
+      urgent: false,
+      userId: requester.id,
+    };
+    const readyDonor = user({ id: 8, telegramUserId: 45678 });
+
+    db.queueSelect([]);
+    db.queueSelect([]);
+    db.queueSelect([requester]);
+    db.queueSelect([readyDonor]);
+    db.queueInsert([]);
+    db.queueInsert([request]);
+    db.queueUpdate([]);
+    const { bot, calls, events, sendNotificationBatch } = testBot(db);
+
+    await bot.handleUpdate(callbackUpdate(5, "request:type:O+"));
+
+    expect(sendNotificationBatch).toHaveBeenCalledWith([
+      {
+        body: {
+          donorId: readyDonor.id,
+          requestId: request.id,
+          type: "donor_notification",
+        },
+        contentType: "json",
+      },
+    ]);
+    expect(sentTexts(calls)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Request sent to channel"),
+        expect.stringContaining("Available O+ donors"),
+      ]),
+    );
+    expect(events.at(-1)).toBe("queue:sendBatch");
   });
 });

@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   await createTelegramBot({
     config,
     db,
-    waitUntil: cloudflare.context.waitUntil.bind(cloudflare.context),
+    notificationQueue: cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS,
   }).handleUpdate(update);
   return { ok: true };
 });

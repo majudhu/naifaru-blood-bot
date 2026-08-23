@@ -27,6 +27,26 @@
     },
   ],
 
+  "queues": {
+    "producers": [
+      {
+        "binding": "TELEGRAM_DONOR_NOTIFICATIONS",
+        "queue": "naifaru-blood-bot-donor-notifications",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "naifaru-blood-bot-donor-notifications",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "naifaru-blood-bot-donor-notifications-dlq",
+        "max_concurrency": 1,
+        "retry_delay": 30,
+      },
+    ],
+  },
+
   /**
    * Smart Placement
    * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

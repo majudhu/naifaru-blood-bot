@@ -7,15 +7,15 @@ import {
   findReadyDonors,
   findUserByTelegramId,
   isBloodType,
-  notifyDonors,
   recordChannelMessage,
   upsertTelegramContactUser,
 } from "./services";
+import { enqueueDonorNotifications } from "./notifications";
 import { createD1SessionStorage, markTelegramUpdateProcessed } from "./storage";
 import {
   formatChannelRequest,
   formatDonorContact,
-  formatReadyDonors,
+  formatReadyDonorMessages,
   formatRequesterContact,
 } from "./format";
 import type { AppDb, TelegramConfig, TelegramContext, TelegramSession } from "./types";
@@ -130,7 +130,7 @@ async function tryPendingHelp(ctx: TelegramContext, db: AppDb) {
 export function createTelegramBot(input: {
   config: TelegramConfig;
   db: AppDb;
-  waitUntil: (promise: Promise<unknown>) => void;
+  notificationQueue: Env["TELEGRAM_DONOR_NOTIFICATIONS"];
 }) {
   const bot = new Bot<TelegramContext>(input.config.botToken, {
     botInfo: input.config.botInfo,
@@ -247,26 +247,19 @@ export function createTelegramBot(input: {
     };
     const readyDonors = await findReadyDonors(input.db, donorMatch);
 
-    input.waitUntil(
-      notifyDonors(
-        ctx,
-        input.config,
-        readyDonors,
-        request,
-        formatMatchingRequestNotification(user, request),
-      ),
-    );
-
     await ctx.reply(
-      [
-        'Request sent to channel <a href="https://t.me/naifarudonors">@naifarudonors</a>',
-        formatReadyDonors(readyDonors, request),
-      ].join("\n\n"),
+      'Request sent to channel <a href="https://t.me/naifarudonors">@naifarudonors</a>',
       {
         ...html,
         reply_markup: mainMenuKeyboard(),
       },
     );
+
+    for (const donorMessage of formatReadyDonorMessages(readyDonors, request)) {
+      await ctx.reply(donorMessage, html);
+    }
+
+    await enqueueDonorNotifications(input.notificationQueue, readyDonors, request);
   });
 
   bot.callbackQuery(/^help:(\d+)$/, async (ctx) => {

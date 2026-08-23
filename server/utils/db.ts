@@ -5,6 +5,10 @@ import * as schema from "../schema";
 
 export { schema };
 
+export function createDb(database: D1Database) {
+  return drizzle(database, { schema });
+}
+
 export function useDb(event: H3Event) {
-  return drizzle(event.context.cloudflare.env.DB, { schema });
+  return createDb(event.context.cloudflare.env.DB);
 }
