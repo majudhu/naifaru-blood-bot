@@ -69,6 +69,7 @@ const editDetails = shallowRef<Partial<InternalApi["/api/users/:id"]["get"]>>({}
 const expandDetails = ref(false);
 
 const isNew = computed(() => !editDetails.value.id);
+const age = computed(() => formatAge(edit.dob));
 
 const dashboard = await useLazyFetch("/api/dashboard");
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
@@ -82,7 +83,7 @@ const BLANK_USER = {
   bloodType: "" as (typeof bloodTypeValues)[number],
   nid: "",
   sex: "" as DbUser["sex"],
-  dob: new Date().toLocaleDateString("en-CA"),
+  dob: "",
   address: "",
   island: "",
   isAvailable: false,
@@ -99,7 +100,7 @@ function resetForm() {
 }
 
 const lastDonated = computed(() => {
-  if (!edit.lastDonatedAt) return "Last donated: -";
+  if (!edit.lastDonatedAt || isDateNil(edit.lastDonatedAt)) return "Last donated: -";
   const days = Math.ceil((Date.now() - Date.parse(edit.lastDonatedAt)) / DAY_MS);
   if (days < 100) return `Last donated ${days} days ago`;
   if (days < 365) return `Last donated ${Math.floor(days / 30)} months ago`;
@@ -150,10 +151,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
   editDetails.value = row.original;
   Object.assign(edit, {
     ...row.original,
-    lastDonatedAt:
-      row.original.lastDonatedAt === EPOCH_STRING
-        ? ""
-        : row.original.lastDonatedAt.substring(0, 10),
+    lastDonatedAt: dateInputValue(row.original.lastDonatedAt),
   });
   showDialog.value = true;
   isLoading.value = true;
@@ -165,9 +163,8 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
         ...user,
         updatedAt: undefined,
         createdAt: undefined,
-        lastDonatedAt:
-          user.lastDonatedAt === EPOCH_STRING ? "" : user.lastDonatedAt.substring(0, 10),
-        dob: user.dob.substring(0, 10),
+        lastDonatedAt: dateInputValue(user.lastDonatedAt),
+        dob: dateInputValue(user.dob),
       });
       editDetails.value = user;
       isLoading.value = false; // disable loading and enable submit only if the user fetch is successful
@@ -287,8 +284,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
           </UFormField>
 
           <small class="flex flex-wrap md:grid-cols-2">
-            {{ lastDonated }} &emsp; Age:
-            {{ Math.floor((Date.now() - Date.parse(edit.dob)) / 365 / DAY_MS) }} years
+            {{ lastDonated }} &emsp; Age: {{ age }}
           </small>
 
           <UCollapsible
@@ -368,7 +364,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
     cellpadding=""
   >
     <template #lastDonatedAt-cell="{ row }">
-      <span v-if="row.original.lastDonatedAt === EPOCH_STRING">-</span>
+      <span v-if="isDateNil(row.original.lastDonatedAt)">-</span>
       <NuxtTime v-else :datetime="row.original.lastDonatedAt" date-style="short" />
     </template>
   </UTable>

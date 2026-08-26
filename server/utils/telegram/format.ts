@@ -1,7 +1,5 @@
-import { EPOCH_STRING } from "../../../shared/utils/const";
 import type { BloodRequest, User } from "../../schema";
 
-export const epochDate = new Date(EPOCH_STRING);
 export const TELEGRAM_MESSAGE_LENGTH_LIMIT = 4096;
 
 export function escapeHtml(value: string | number | boolean | null | undefined) {

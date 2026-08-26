@@ -2,10 +2,13 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import {
   bloodTypeValues,
+  DATE_NIL,
   donorResponseStatusValues,
   requestStatusValues,
   staffRoleValues,
 } from "../shared/utils/const";
+
+const dateNilDefault = () => sql.raw(String(new Date(DATE_NIL).getTime() / 1000));
 
 const timestampColumns = () => ({
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -27,13 +30,13 @@ export const users = sqliteTable(
     bloodType: text("blood_type", { enum: bloodTypeValues }).notNull().default(""),
     nid: text("nid").unique(),
     sex: text("sex", { enum: ["", "m", "f"] }).notNull(),
-    dob: integer("dob", { mode: "timestamp" }).notNull(),
+    dob: integer("dob", { mode: "timestamp" }).notNull().default(dateNilDefault()),
     address: text("address").notNull().default(""),
     island: text("island").notNull().default(""),
     isAvailable: integer("is_available", { mode: "boolean" }).notNull().default(false),
     lastDonatedAt: integer("last_donated_at", { mode: "timestamp" })
       .notNull()
-      .default(sql`0`),
+      .default(dateNilDefault()),
     notes: text("notes").notNull().default(""),
     ...timestampColumns(),
   },

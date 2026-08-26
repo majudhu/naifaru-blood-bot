@@ -1,5 +1,5 @@
 import { and, asc, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
-import { bloodTypeValues, EPOCH_STRING } from "../../../shared/utils/const";
+import { bloodTypeValues, DATE_NIL } from "../../../shared/utils/const";
 import {
   bloodRequests,
   donorResponses,
@@ -110,10 +110,10 @@ export async function upsertTelegramContactUser(
   const user: NewUser = {
     address: "",
     bloodType: "",
-    dob: new Date(EPOCH_STRING),
+    dob: new Date(DATE_NIL),
     island: "",
     isAvailable: false,
-    lastDonatedAt: new Date(EPOCH_STRING),
+    lastDonatedAt: new Date(DATE_NIL),
     name,
     notes: "",
     phone,

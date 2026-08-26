@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DATE_NIL } from "../../shared/utils/const";
 import {
   autoImportMocks,
   createDbMock,
@@ -290,6 +291,22 @@ describe("users API", () => {
         notes: "",
         phone: null,
         telegramUsername: null,
+      }),
+    );
+  });
+
+  it("stores DATE_NIL when creating a user without date values", async () => {
+    const { default: handler } = await import("../../server/api/users.post");
+    const db = createDbMock();
+    const insert = db.queueInsert([{ id: 13 }]);
+    const event = createEvent({ body: { ...validUserBody, dob: "" }, db });
+
+    await expect(handler(event)).resolves.toEqual({ id: 13 });
+
+    expect(insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dob: new Date(DATE_NIL),
+        lastDonatedAt: new Date(DATE_NIL),
       }),
     );
   });

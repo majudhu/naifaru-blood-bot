@@ -4,6 +4,7 @@ import type { Update } from "grammy/types";
 import type { User } from "../../server/schema";
 import { createTelegramBot } from "../../server/utils/telegram/bot";
 import type { AppDb } from "../../server/utils/telegram/types";
+import { DATE_NIL } from "../../shared/utils/const";
 import { createDbMock } from "./api-test-utils";
 
 type ApiCall = {
@@ -20,7 +21,7 @@ function user(overrides: Partial<User> = {}): User {
     id: 7,
     island: "Naifaru",
     isAvailable: true,
-    lastDonatedAt: new Date("1970-01-01"),
+    lastDonatedAt: new Date(DATE_NIL),
     name: "Aisha",
     nid: "A123456",
     notes: "",

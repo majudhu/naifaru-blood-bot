@@ -5,7 +5,6 @@ import {
   bloodTypeValues,
   DAY_MS,
   donorResponseStatusValues,
-  EPOCH_STRING,
   requestStatusValues,
   staffRoleValues,
 } from "../../shared/utils/const";
@@ -174,7 +173,6 @@ export function installApiTestGlobals() {
   vi.stubGlobal("DAY_MS", DAY_MS);
   vi.stubGlobal("defineEventHandler", autoImportMocks.defineEventHandler);
   vi.stubGlobal("donorResponseStatusValues", donorResponseStatusValues);
-  vi.stubGlobal("EPOCH_STRING", EPOCH_STRING);
   vi.stubGlobal("getQuery", autoImportMocks.getQuery);
   vi.stubGlobal("getRouterParam", autoImportMocks.getRouterParam);
   vi.stubGlobal("hashPassword", autoImportMocks.hashPassword);

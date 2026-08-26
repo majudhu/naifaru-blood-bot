@@ -1,5 +1,12 @@
 import { createError } from "h3";
 import * as v from "valibot";
+import { DATE_NIL } from "../../shared/utils/const";
+
+const dateParser = v.pipe(
+  v.optional(v.string(), ""),
+  v.transform((value) => value || DATE_NIL),
+  v.toDate(),
+);
 
 export const CreateuserParser = v.parser(
   v.object({
@@ -32,17 +39,11 @@ export const CreateuserParser = v.parser(
       ]),
     ),
     sex: v.picklist(["", "m", "f"]),
-    dob: v.pipe(v.string(), v.toDate()),
+    dob: dateParser,
     address: v.string(),
     island: v.string(),
     isAvailable: v.optional(v.boolean(), false),
-    lastDonatedAt: v.optional(
-      v.pipe(
-        v.string(),
-        v.transform((s) => s || null),
-        v.toDate(),
-      ),
-    ),
+    lastDonatedAt: dateParser,
     notes: v.optional(v.string(), ""),
   }),
 );

@@ -17,6 +17,7 @@ import {
 } from "../../server/utils/telegram/format";
 import { assertTelegramWebhookSecret } from "../../server/utils/telegram/config";
 import { markTelegramUpdateProcessed } from "../../server/utils/telegram/storage";
+import { DATE_NIL } from "../../shared/utils/const";
 import { createDbMock, expectHttpError } from "./api-test-utils";
 
 function dbMock() {
@@ -32,7 +33,7 @@ function user(overrides: Partial<User> = {}): User {
     id: 7,
     island: "Naifaru",
     isAvailable: true,
-    lastDonatedAt: new Date("1970-01-01"),
+    lastDonatedAt: new Date(DATE_NIL),
     name: "Aisha",
     nid: "A123456",
     notes: "",
@@ -83,10 +84,10 @@ describe("Telegram contact onboarding", () => {
     db.queueSelect([]);
     const created = user({
       bloodType: "",
-      dob: new Date("1970-01-01"),
+      dob: new Date(DATE_NIL),
       id: 12,
       isAvailable: false,
-      lastDonatedAt: new Date("1970-01-01"),
+      lastDonatedAt: new Date(DATE_NIL),
       name: "Ali Rasheed",
       phone: "7770000",
       sex: "",
@@ -106,6 +107,8 @@ describe("Telegram contact onboarding", () => {
     expect(insert.values).toHaveBeenCalledWith(
       expect.objectContaining({
         bloodType: "",
+        dob: new Date(DATE_NIL),
+        lastDonatedAt: new Date(DATE_NIL),
         isAvailable: false,
         name: "Ali Rasheed",
         phone: "7770000",
@@ -277,7 +280,7 @@ describe("Telegram donor matching", () => {
     const donor = user({
       address: "",
       bloodType: "A+",
-      dob: new Date("1970-01-01"),
+      dob: new Date(DATE_NIL),
       id: 10,
       island: "",
       isAvailable: false,
