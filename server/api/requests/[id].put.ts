@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { createError } from "h3";
+import { requireStaffRole } from "../../utils/auth";
 import { CreateRequestParser } from "../requests.post";
 
 export default defineEventHandler(async (event) => {
-  const { user } = await requireUserSession(event);
-  if (!user.role) throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  await requireStaffRole(event, ["admin", "nurse"]);
 
   const requestId = +getRouterParam(event, "id")!;
   if (!requestId) throw createError({ statusCode: 400, statusMessage: "Invalid request ID" });

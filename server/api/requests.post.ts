@@ -1,5 +1,5 @@
-import { createError } from "h3";
 import * as v from "valibot";
+import { requireStaffRole } from "../utils/auth";
 
 export const CreateRequestParser = v.parser(
   v.object({
@@ -15,8 +15,7 @@ export const CreateRequestParser = v.parser(
 );
 
 export default defineEventHandler(async (event) => {
-  const { user } = await requireUserSession(event);
-  if (!user.role) throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  await requireStaffRole(event, ["admin", "nurse"]);
 
   const db = useDb(event);
   const body = await readValidatedBody(event, CreateRequestParser);

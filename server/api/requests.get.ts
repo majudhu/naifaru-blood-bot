@@ -1,11 +1,10 @@
 import { and, count, desc, eq, like, or } from "drizzle-orm";
-import { createError } from "h3";
+import { requireStaffRole } from "../utils/auth";
 
 const limit = 20;
 
 export default defineEventHandler(async (event) => {
-  const { user } = await requireUserSession(event);
-  if (!user.role) throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  await requireStaffRole(event, ["admin", "nurse"]);
 
   const query = getQuery<{
     page?: string;

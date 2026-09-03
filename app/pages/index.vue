@@ -54,21 +54,27 @@ const donorStatuses = [
 const toast = useToast();
 const { user } = useUserSession();
 const isNurse = computed(() => user.value?.role === "nurse");
+const isLab = computed(() => user.value?.role === "lab");
+const canAddUser = computed(() => user.value?.role === "admin" || isLab.value);
 
 const page = ref(1);
 const search = ref("");
 const searchDebounced = refDebounced(search, 300);
 const type = ref("All");
-const donorStatus = ref("ready");
+const donorStatus = ref(isLab.value ? "all" : "ready");
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editDetails = shallowRef<Partial<InternalApi["/api/users/:id"]["get"]>>({});
 const expandDetails = ref(false);
 
 const isNew = computed(() => !editDetails.value.id);
+const isReadOnly = computed(() => isLab.value && !isNew.value);
+const dialogTitle = computed(() =>
+  isNew.value ? "Add User" : isReadOnly.value ? "View User" : "Edit User",
+);
 const age = computed(() => formatAge(edit.dob));
 
-const dashboard = await useLazyFetch("/api/dashboard");
+const dashboard = await useLazyFetch("/api/dashboard", { immediate: !isLab.value });
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
   query: { page, search: searchDebounced, type, status: donorStatus },
 });
@@ -105,13 +111,15 @@ const lastDonated = computed(() => {
 });
 
 async function save(event: FormSubmitEvent<typeof edit>) {
+  if (isReadOnly.value) return;
+
   try {
     isLoading.value = true;
 
     if (isNew.value) await $fetch("/api/users", { method: "POST", body: event.data });
     else await $fetch(`/api/users/${editDetails.value.id}`, { method: "PUT", body: event.data });
 
-    donorStatus.value = event.data.isAvailable ? "donors" : "non-donors";
+    if (!isLab.value) donorStatus.value = event.data.isAvailable ? "donors" : "non-donors";
 
     if (isNew.value)
       refresh().then(() => {
@@ -119,7 +127,7 @@ async function save(event: FormSubmitEvent<typeof edit>) {
       });
     else refresh();
 
-    dashboard.refresh();
+    if (!isLab.value) dashboard.refresh();
 
     toast.add({
       title: isNew.value ? "User added" : "User updated",
@@ -177,9 +185,9 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
 </script>
 
 <template>
-  <h1 class="text-2xl font-semibold pb-4">Dashboard</h1>
+  <h1 class="text-2xl font-semibold pb-4">{{ isLab ? "Users" : "Dashboard" }}</h1>
 
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
+  <div v-if="!isLab" class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
     <NuxtLink to="/requests">
       <UCard
         :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
@@ -206,7 +214,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
     />
   </div>
 
-  <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
+  <div v-if="!isLab" class="flex flex-wrap gap-3 md:gap-4 pb-4">
     <UButton
       color="neutral"
       variant="subtle"
@@ -240,17 +248,15 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
     <UModal
       v-model:open="showDialog"
       size=""
-      :title="isNew ? 'Add User' : 'Edit User'"
+      :title="dialogTitle"
       class="ml-auto"
       :ui="{ content: 'max-w-2xl' }"
     >
-      <UButton v-if="user?.role === 'admin'" icon="i-lucide-user-plus" @click="add">
-        Add User
-      </UButton>
+      <UButton v-if="canAddUser" icon="i-lucide-user-plus" @click="add"> Add User </UButton>
       <template #body>
         <UForm :state="edit" @submit="save" class="grid md:grid-cols-2 gap-3">
           <UFormField label="Name">
-            <UInput v-model="edit.name" class="w-full" required :disabled="isNurse" />
+            <UInput v-model="edit.name" class="w-full" required :disabled="isNurse || isReadOnly" />
           </UFormField>
 
           <UFormField label="Blood Type">
@@ -258,27 +264,38 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
               v-model="edit.bloodType"
               :items="bloodTypes"
               class="w-full"
-              :disabled="isNurse"
+              :disabled="isNurse || isReadOnly"
             />
           </UFormField>
 
           <UFormField label="Last Donation Date" class="flex-1">
-            <UInput v-model="edit.lastDonatedAt" class="w-full" type="date" />
+            <UInput
+              v-model="edit.lastDonatedAt"
+              class="w-full"
+              type="date"
+              :disabled="isReadOnly"
+            />
           </UFormField>
 
           <div class="flex items-end justify-between gap-4">
             <UButton
               color="secondary"
+              :disabled="isReadOnly"
               @click="void (edit.lastDonatedAt = new Date().toLocaleDateString('en-CA'))"
             >
               Today
             </UButton>
 
-            <UCheckbox v-model="edit.isAvailable" label="Donor" class="pb-2" :disabled="isNurse" />
+            <UCheckbox
+              v-model="edit.isAvailable"
+              label="Donor"
+              class="pb-2"
+              :disabled="isNurse || isReadOnly"
+            />
           </div>
 
           <UFormField label="Phone">
-            <UInput v-model="edit.phone" class="w-full" minlength="7" />
+            <UInput v-model="edit.phone" class="w-full" minlength="7" :disabled="isReadOnly" />
           </UFormField>
 
           <UFormField label="NID / PP No.">
@@ -287,7 +304,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
               class="w-full"
               minlength="7"
               maxlength="7"
-              :disabled="isNurse"
+              :disabled="isNurse || isReadOnly"
             />
           </UFormField>
 
@@ -302,19 +319,19 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
           >
             <template #content>
               <UFormField label="Sex">
-                <USelect v-model="edit.sex" :items="sexes" class="w-full" />
+                <USelect v-model="edit.sex" :items="sexes" class="w-full" :disabled="isReadOnly" />
               </UFormField>
 
               <UFormField label="Date of birth">
-                <UInput v-model="edit.dob" class="w-full" type="date" />
+                <UInput v-model="edit.dob" class="w-full" type="date" :disabled="isReadOnly" />
               </UFormField>
 
               <UFormField label="Address">
-                <UInput v-model="edit.address" class="w-full" />
+                <UInput v-model="edit.address" class="w-full" :disabled="isReadOnly" />
               </UFormField>
 
               <UFormField label="Island">
-                <UInput v-model="edit.island" class="w-full" />
+                <UInput v-model="edit.island" class="w-full" :disabled="isReadOnly" />
               </UFormField>
 
               <UFormField label="Telegram User ID" class="opacity-50" v-if="!isNew">
@@ -322,11 +339,16 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
               </UFormField>
 
               <UFormField label="Telegram Username">
-                <UInput v-model="edit.telegramUsername" class="w-full" minlength="7" />
+                <UInput
+                  v-model="edit.telegramUsername"
+                  class="w-full"
+                  minlength="7"
+                  :disabled="isReadOnly"
+                />
               </UFormField>
 
               <UFormField label="Notes" class="md:col-span-2">
-                <UTextarea v-model="edit.notes" class="w-full" />
+                <UTextarea v-model="edit.notes" class="w-full" :disabled="isReadOnly" />
               </UFormField>
 
               <small v-if="editDetails.createdAt" class="md:col-span-2 text-muted">
@@ -343,6 +365,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
           </UCollapsible>
 
           <UButton
+            v-if="!isReadOnly"
             type="submit"
             :icon="isNew ? 'i-lucide-user-plus' : 'i-lucide-user-check'"
             :cloading="isLoading"
@@ -351,7 +374,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
             {{ isNew ? "Add" : "Save" }}
           </UButton>
           <UButton
-            v-if="user?.role === 'admin' && !isNew"
+            v-if="(user?.role === 'admin' || isReadOnly) && !isNew"
             :label="`${expandDetails ? 'Hide' : 'Show'} Details`"
             color="neutral"
             variant="subtle"

@@ -1,6 +1,6 @@
-import { createError } from "h3";
 import * as v from "valibot";
 import { DATE_NIL } from "../../shared/utils/const";
+import { requireStaffRole } from "../utils/auth";
 
 const dateParser = v.pipe(
   v.optional(v.string(), ""),
@@ -49,8 +49,7 @@ export const CreateuserParser = v.parser(
 );
 
 export default defineEventHandler(async (event) => {
-  const { user } = await requireUserSession(event);
-  if (!user.role) throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  await requireStaffRole(event, ["admin", "nurse", "lab"]);
 
   const db = useDb(event);
 

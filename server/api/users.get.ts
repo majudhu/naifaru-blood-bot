@@ -1,5 +1,5 @@
 import { and, count, eq, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
-import { createError } from "h3";
+import { requireStaffRole } from "../utils/auth";
 
 const limit = 20;
 
@@ -19,8 +19,7 @@ const STATUS_FILTER: Record<Status, SQL<unknown> | undefined> = {
 };
 
 export default defineEventHandler(async (event) => {
-  const { user } = await requireUserSession(event);
-  if (!user.role) throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  await requireStaffRole(event, ["admin", "nurse", "lab"]);
 
   const db = useDb(event);
 

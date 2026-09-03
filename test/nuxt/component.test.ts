@@ -5,6 +5,15 @@ import DefaultLayout from "../../app/layouts/default.vue";
 
 const session = vi.hoisted(() => ({
   clear: vi.fn<() => void>(),
+  fetch: vi.fn<() => Promise<void>>(async () => {}),
+  loggedIn: {
+    __v_isRef: true,
+    value: true,
+  },
+  ready: {
+    __v_isRef: true,
+    value: true,
+  },
   user: {
     __v_isRef: true,
     value: { id: 1, name: "Admin", role: "admin" },
@@ -14,11 +23,15 @@ const session = vi.hoisted(() => ({
 mockNuxtImport("navigateTo", () => vi.fn<() => void>());
 mockNuxtImport("useUserSession", () => () => ({
   clear: session.clear,
+  fetch: session.fetch,
+  loggedIn: session.loggedIn,
+  ready: session.ready,
   user: session.user,
 }));
 
 beforeEach(() => {
   session.clear.mockReset();
+  session.fetch.mockClear();
   vi.stubGlobal("matchMedia", () => ({
     addEventListener: vi.fn<() => void>(),
     addListener: vi.fn<() => void>(),
@@ -45,7 +58,7 @@ describe("default layout", () => {
     expect(component.text()).toContain("Page content");
   });
 
-  it("hides Staff navigation for non-admin users", async () => {
+  it("only shows Dashboard navigation for nurses", async () => {
     session.user.value = { id: 2, name: "Nurse", role: "nurse" };
 
     const component = await mountSuspended(DefaultLayout, {
@@ -53,7 +66,20 @@ describe("default layout", () => {
     });
 
     expect(component.text()).toContain("Dashboard");
-    expect(component.text()).toContain("Requests");
+    expect(component.text()).not.toContain("Requests");
+    expect(component.text()).not.toContain("Staff");
+  });
+
+  it("only shows Users navigation for lab staff", async () => {
+    session.user.value = { id: 3, name: "Lab", role: "lab" };
+
+    const component = await mountSuspended(DefaultLayout, {
+      slots: { default: "<p>Page content</p>" },
+    });
+
+    expect(component.text()).toContain("Users");
+    expect(component.text()).not.toContain("Dashboard");
+    expect(component.text()).not.toContain("Requests");
     expect(component.text()).not.toContain("Staff");
   });
 });

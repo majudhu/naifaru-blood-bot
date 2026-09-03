@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { createError } from "h3";
+import { requireStaffRole } from "../../utils/auth";
 
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event);
-  if (!session.user.role) throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  await requireStaffRole(event, ["admin", "nurse", "lab"]);
 
   const db = useDb(event);
 

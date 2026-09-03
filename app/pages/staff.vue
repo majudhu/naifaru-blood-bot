@@ -12,6 +12,7 @@ if (user.value?.role !== "admin") navigateTo("/");
 const roles: SelectItem[] = [
   { label: "Admin", value: "admin" },
   { label: "Nurse", value: "nurse" },
+  { label: "Lab", value: "lab" },
 ];
 
 const toast = useToast();
