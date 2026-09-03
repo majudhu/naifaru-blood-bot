@@ -40,23 +40,23 @@ export function formatReadyDonorMessages(
   }
 
   const heading = `<b>Available ${escapeHtml(request.bloodType)} donors</b>`;
-  const maximumEntryLength = TELEGRAM_MESSAGE_LENGTH_LIMIT - heading.length - 2;
+  const maximumEntryLength = TELEGRAM_MESSAGE_LENGTH_LIMIT - heading.length - 1;
   const messages: string[] = [];
   let entries: string[] = [];
 
   for (const [index, donor] of donors.entries()) {
     const entry = formatReadyDonorEntry(donor, index + 1, maximumEntryLength);
-    const candidate = [heading, ...entries, entry].join("\n\n");
+    const candidate = [heading, ...entries, entry].join("\n");
 
     if (candidate.length > TELEGRAM_MESSAGE_LENGTH_LIMIT) {
-      messages.push([heading, ...entries].join("\n\n"));
+      messages.push([heading, ...entries].join("\n"));
       entries = [entry];
     } else {
       entries.push(entry);
     }
   }
 
-  messages.push([heading, ...entries].join("\n\n"));
+  messages.push([heading, ...entries].join("\n"));
   return messages;
 }
 
@@ -66,12 +66,12 @@ function formatReadyDonorEntry(
   maximumLength: number,
 ) {
   const prefix = `${position}. `;
-  const mobilePrefix = "\nMobile: ";
+  const separator = " / ";
   const codePrefix = donor.phone ? "<code>" : "";
   const codeSuffix = donor.phone ? "</code>" : "";
   const escapedName = escapeHtml(donor.name);
   const escapedPhone = donor.phone ? escapeHtml(donor.phone) : "not provided";
-  const fixedLength = prefix.length + mobilePrefix.length + codePrefix.length + codeSuffix.length;
+  const fixedLength = prefix.length + separator.length + codePrefix.length + codeSuffix.length;
   const availableContentLength = maximumLength - fixedLength;
 
   let name = escapedName;
@@ -82,7 +82,7 @@ function formatReadyDonorEntry(
     name = truncateEscapedHtml(donor.name, availableContentLength - phone.length);
   }
 
-  return `${prefix}${name}${mobilePrefix}${codePrefix}${phone}${codeSuffix}`;
+  return `${prefix}${name}${separator}${codePrefix}${phone}${codeSuffix}`;
 }
 
 function truncateEscapedHtml(value: string, maximumLength: number) {

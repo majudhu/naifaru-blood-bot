@@ -178,8 +178,9 @@ describe("Telegram blood requests", () => {
       request,
     );
     expect(readyDonorText).toContain("Available O+ donors");
-    expect(readyDonorText).toContain("1. Fathimath &amp; Ali\nMobile: <code>7772222</code>");
-    expect(readyDonorText).toContain("2. Hassan\nMobile: <code>9993333</code>");
+    expect(readyDonorText).toContain(
+      "1. Fathimath &amp; Ali / <code>7772222</code>\n2. Hassan / <code>9993333</code>",
+    );
     expect(formatReadyDonorMessages([], request)[0]).toContain(
       "No available donors were found for <b>O+</b>.",
     );
@@ -205,7 +206,7 @@ describe("Telegram blood requests", () => {
     const messages = formatReadyDonorMessages(donors, request);
 
     expect(messages).toHaveLength(1);
-    expect(messages[0]?.match(/Mobile:/g)).toHaveLength(51);
+    expect(messages[0]?.match(/^\d+\. .* \/ /gm)).toHaveLength(51);
     expect(messages[0]).toContain("1. Donor 1");
     expect(messages[0]).toContain("51. Donor 51");
   });
