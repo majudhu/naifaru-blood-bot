@@ -17,7 +17,7 @@ const columns: TableColumn<UserRow>[] = [
   },
   {
     accessorKey: "nid",
-    header: "NID",
+    header: "NID / PP No.",
     meta: { class: { th: "hidden md:table-cell", td: "hidden md:table-cell" } },
   },
   { accessorKey: "bloodType", header: "Blood Type" },
@@ -31,11 +31,7 @@ const columns: TableColumn<UserRow>[] = [
     header: "Donor",
     cell({ row }) {
       const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / DAY_MS);
-      return row.original.isAvailable
-        ? days < 1
-          ? h("span", { class: "text-lg leading-0" }, "✅")
-          : `⏳ ${days} days`
-        : "-";
+      return row.original.isAvailable ? (days < 1 ? "Available" : `⏳ ${days} days`) : "-";
     },
   },
 ];
@@ -57,6 +53,7 @@ const donorStatuses = [
 
 const toast = useToast();
 const { user } = useUserSession();
+const isNurse = computed(() => user.value?.role === "nurse");
 
 const page = ref(1);
 const search = ref("");
@@ -253,11 +250,16 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
       <template #body>
         <UForm :state="edit" @submit="save" class="grid md:grid-cols-2 gap-3">
           <UFormField label="Name">
-            <UInput v-model="edit.name" class="w-full" required />
+            <UInput v-model="edit.name" class="w-full" required :disabled="isNurse" />
           </UFormField>
 
           <UFormField label="Blood Type">
-            <USelect v-model="edit.bloodType" :items="bloodTypes" class="w-full" />
+            <USelect
+              v-model="edit.bloodType"
+              :items="bloodTypes"
+              class="w-full"
+              :disabled="isNurse"
+            />
           </UFormField>
 
           <UFormField label="Last Donation Date" class="flex-1">
@@ -272,15 +274,21 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
               Today
             </UButton>
 
-            <UCheckbox v-model="edit.isAvailable" label="Donor" class="pb-2" />
+            <UCheckbox v-model="edit.isAvailable" label="Donor" class="pb-2" :disabled="isNurse" />
           </div>
 
           <UFormField label="Phone">
             <UInput v-model="edit.phone" class="w-full" minlength="7" />
           </UFormField>
 
-          <UFormField label="National ID">
-            <UInput v-model="edit.nid" class="w-full" minlength="7" maxlength="7" />
+          <UFormField label="NID / PP No.">
+            <UInput
+              v-model="edit.nid"
+              class="w-full"
+              minlength="7"
+              maxlength="7"
+              :disabled="isNurse"
+            />
           </UFormField>
 
           <small class="flex flex-wrap md:grid-cols-2">
