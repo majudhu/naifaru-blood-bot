@@ -61,7 +61,7 @@ const page = ref(1);
 const search = ref("");
 const searchDebounced = refDebounced(search, 300);
 const type = ref("All");
-const donorStatus = ref(isLab.value ? "all" : "ready");
+const donorStatus = ref("ready");
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editDetails = shallowRef<Partial<InternalApi["/api/users/:id"]["get"]>>({});
@@ -74,7 +74,7 @@ const dialogTitle = computed(() =>
 );
 const age = computed(() => formatAge(edit.dob));
 
-const dashboard = await useLazyFetch("/api/dashboard", { immediate: !isLab.value });
+const dashboard = await useLazyFetch("/api/dashboard");
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
   query: { page, search: searchDebounced, type, status: donorStatus },
 });
@@ -119,15 +119,13 @@ async function save(event: FormSubmitEvent<typeof edit>) {
     if (isNew.value) await $fetch("/api/users", { method: "POST", body: event.data });
     else await $fetch(`/api/users/${editDetails.value.id}`, { method: "PUT", body: event.data });
 
-    if (!isLab.value) donorStatus.value = event.data.isAvailable ? "donors" : "non-donors";
+    donorStatus.value = event.data.isAvailable ? "donors" : "non-donors";
 
     if (isNew.value)
       refresh().then(() => {
         page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
       });
     else refresh();
-
-    if (!isLab.value) dashboard.refresh();
 
     toast.add({
       title: isNew.value ? "User added" : "User updated",
@@ -185,9 +183,9 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
 </script>
 
 <template>
-  <h1 class="text-2xl font-semibold pb-4">{{ isLab ? "Users" : "Dashboard" }}</h1>
+  <h1 class="text-2xl font-semibold pb-4">Dashboard</h1>
 
-  <div v-if="!isLab" class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
     <NuxtLink to="/requests">
       <UCard
         :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
@@ -214,7 +212,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
     />
   </div>
 
-  <div v-if="!isLab" class="flex flex-wrap gap-3 md:gap-4 pb-4">
+  <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
     <UButton
       color="neutral"
       variant="subtle"

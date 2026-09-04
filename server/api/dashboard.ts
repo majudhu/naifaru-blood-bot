@@ -2,7 +2,7 @@ import { and, count, eq, gte, lte, sql } from "drizzle-orm";
 import { requireStaffRole } from "../utils/auth";
 
 export default defineEventHandler(async (event) => {
-  await requireStaffRole(event, ["admin", "nurse"]);
+  await requireStaffRole(event, ["admin", "nurse", "lab"]);
 
   const db = useDb(event);
 
@@ -40,5 +40,10 @@ export default defineEventHandler(async (event) => {
       .groupBy(schema.users.bloodType),
   ]);
 
-  return { donors: donors?.count, new: newDonors?.count, ready: ready?.count, groups };
+  return {
+    donors: donors?.count,
+    new: newDonors?.count,
+    ready: ready?.count,
+    groups,
+  };
 });

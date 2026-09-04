@@ -16,8 +16,8 @@ function onSelect() {
 
 const items = computed<NavigationMenuItem[]>(() => [
   {
-    label: user.value?.role === "lab" ? "Users" : "Dashboard",
-    icon: user.value?.role === "lab" ? "i-lucide-users" : "i-lucide-house",
+    label: "Dashboard",
+    icon: "i-lucide-house",
     to: "/",
     onSelect,
   },
