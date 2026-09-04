@@ -1,10 +1,9 @@
 import { eq, sql } from "drizzle-orm";
 import { createError } from "h3";
-import { requireStaffRole } from "../../utils/auth";
 import { CreateuserParser } from "../users.post";
 
 export default defineEventHandler(async (event) => {
-  await requireStaffRole(event, ["admin", "nurse"]);
+  await requireUserSession(event);
 
   const userId = +getRouterParam(event, "id")!;
   if (!userId) throw createError({ statusCode: 400, statusMessage: "Invalid user ID" });

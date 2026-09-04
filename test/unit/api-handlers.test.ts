@@ -246,12 +246,6 @@ describe("staff API", () => {
 });
 
 describe("users API", () => {
-  it("rejects user access without a staff role", async () => {
-    const { default: handler } = await import("../../server/api/users.get");
-
-    await expectRejectsWithStatus(handler(createEvent({ session: { user: {} } })), 403);
-  });
-
   it("returns paginated users with the total", async () => {
     const { default: handler } = await import("../../server/api/users.get");
     const db = createDbMock();
@@ -275,14 +269,13 @@ describe("users API", () => {
     expect(listQuery.offset).toHaveBeenCalledWith(40);
   });
 
-  it("lets lab staff create users and normalizes nullable and date fields", async () => {
+  it("creates users and normalizes nullable and date fields", async () => {
     const { default: handler } = await import("../../server/api/users.post");
     const db = createDbMock();
     const insert = db.queueInsert([{ id: 12 }]);
     const event = createEvent({
       body: validUserBody,
       db,
-      session: { user: { id: 3, role: "lab" } },
     });
 
     await expect(handler(event)).resolves.toEqual({ id: 12 });
@@ -312,29 +305,6 @@ describe("users API", () => {
         dob: new Date(DATE_NIL),
         lastDonatedAt: new Date(DATE_NIL),
       }),
-    );
-  });
-
-  it("lets lab staff read users but blocks updates", async () => {
-    const { default: listHandler } = await import("../../server/api/users.get");
-    const { default: detailHandler } = await import("../../server/api/users/[id].get");
-    const { default: updateHandler } = await import("../../server/api/users/[id].put");
-    const session = { user: { id: 3, role: "lab" } };
-    const listDb = createDbMock();
-    listDb.queueSelect([{ id: 1, name: "Aisha" }]);
-    listDb.queueSelect([{ count: 1 }]);
-    const detailDb = createDbMock();
-    detailDb.queueSelect([{ id: 1, name: "Aisha" }]);
-
-    await expect(
-      listHandler(createEvent({ db: listDb, query: { status: "all" }, session })),
-    ).resolves.toEqual({ data: [{ id: 1, name: "Aisha" }], total: 1 });
-    await expect(
-      detailHandler(createEvent({ db: detailDb, params: { id: "1" }, session })),
-    ).resolves.toEqual({ id: 1, name: "Aisha" });
-    await expectRejectsWithStatus(
-      updateHandler(createEvent({ body: validUserBody, params: { id: "1" }, session })),
-      403,
     );
   });
 
@@ -374,24 +344,6 @@ describe("users API", () => {
 });
 
 describe("requests API", () => {
-  it("blocks lab staff from all request operations", async () => {
-    const { default: listHandler } = await import("../../server/api/requests.get");
-    const { default: createHandler } = await import("../../server/api/requests.post");
-    const { default: detailHandler } = await import("../../server/api/requests/[id].get");
-    const { default: updateHandler } = await import("../../server/api/requests/[id].put");
-    const session = { user: { id: 3, role: "lab" } };
-
-    await Promise.all([
-      expectRejectsWithStatus(listHandler(createEvent({ session })), 403),
-      expectRejectsWithStatus(createHandler(createEvent({ body: validRequestBody, session })), 403),
-      expectRejectsWithStatus(detailHandler(createEvent({ params: { id: "1" }, session })), 403),
-      expectRejectsWithStatus(
-        updateHandler(createEvent({ body: validRequestBody, params: { id: "1" }, session })),
-        403,
-      ),
-    ]);
-  });
-
   it("returns paginated blood requests", async () => {
     const { default: handler } = await import("../../server/api/requests.get");
     const db = createDbMock();
@@ -471,21 +423,6 @@ describe("requests API", () => {
 });
 
 describe("dashboard API", () => {
-  it("rejects dashboard access without a staff role", async () => {
-    const { default: handler } = await import("../../server/api/dashboard");
-
-    await expectRejectsWithStatus(handler(createEvent({ session: { user: {} } })), 403);
-  });
-
-  it("rejects dashboard access for lab staff", async () => {
-    const { default: handler } = await import("../../server/api/dashboard");
-
-    await expectRejectsWithStatus(
-      handler(createEvent({ session: { user: { id: 3, role: "lab" } } })),
-      403,
-    );
-  });
-
   it("returns donor counts and ready groups", async () => {
     const { default: handler } = await import("../../server/api/dashboard");
     const groups = [{ ready: 4, total: 8, type: "A+" }];

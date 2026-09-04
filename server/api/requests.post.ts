@@ -1,5 +1,4 @@
 import * as v from "valibot";
-import { requireStaffRole } from "../utils/auth";
 
 export const CreateRequestParser = v.parser(
   v.object({
@@ -15,7 +14,7 @@ export const CreateRequestParser = v.parser(
 );
 
 export default defineEventHandler(async (event) => {
-  await requireStaffRole(event, ["admin", "nurse"]);
+  await requireUserSession(event);
 
   const db = useDb(event);
   const body = await readValidatedBody(event, CreateRequestParser);

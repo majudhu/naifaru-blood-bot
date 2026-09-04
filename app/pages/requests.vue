@@ -8,7 +8,9 @@ type RequestRow = NonNullable<typeof data.value>["data"][number];
 type RequestDetails = InternalApi["/api/requests/:id"]["get"];
 
 const toast = useToast();
+const { user } = useUserSession();
 const { query } = useRoute();
+const canManageRequests = computed(() => user.value?.role === "admin");
 
 const bloodTypes: SelectItem[] = Array.from(bloodTypeValues);
 bloodTypes[0] = "All";
@@ -83,6 +85,8 @@ function add() {
 }
 
 async function onSelect(_event: Event, row: TableRow<RequestRow>) {
+  if (!canManageRequests.value) return;
+
   editDetails.value = row.original;
   Object.assign(edit, {
     ...BLANK_REQUEST,
@@ -155,7 +159,7 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
       :title="isNew ? 'Add Request' : 'Edit Request'"
       :ui="{ content: 'max-w-2xl' }"
     >
-      <UButton icon="i-lucide-plus" @click="add">Add Request</UButton>
+      <UButton v-if="canManageRequests" icon="i-lucide-plus" @click="add">Add Request</UButton>
       <template #body>
         <UForm :state="edit" @submit="save" class="grid md:grid-cols-2 gap-3">
           <UFormField label="Blood Type">

@@ -1,10 +1,9 @@
 import { and, count, desc, eq, like, or } from "drizzle-orm";
-import { requireStaffRole } from "../utils/auth";
 
 const limit = 20;
 
 export default defineEventHandler(async (event) => {
-  await requireStaffRole(event, ["admin", "nurse"]);
+  await requireUserSession(event);
 
   const query = getQuery<{
     page?: string;

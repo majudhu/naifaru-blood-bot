@@ -58,7 +58,7 @@ describe("default layout", () => {
     expect(component.text()).toContain("Page content");
   });
 
-  it("only shows Dashboard navigation for nurses", async () => {
+  it("hides request and staff navigation from nurses", async () => {
     session.user.value = { id: 2, name: "Nurse", role: "nurse" };
 
     const component = await mountSuspended(DefaultLayout, {
@@ -70,15 +70,14 @@ describe("default layout", () => {
     expect(component.text()).not.toContain("Staff");
   });
 
-  it("only shows Users navigation for lab staff", async () => {
+  it("hides request and staff navigation from lab staff", async () => {
     session.user.value = { id: 3, name: "Lab", role: "lab" };
 
     const component = await mountSuspended(DefaultLayout, {
       slots: { default: "<p>Page content</p>" },
     });
 
-    expect(component.text()).toContain("Users");
-    expect(component.text()).not.toContain("Dashboard");
+    expect(component.text()).toContain("Dashboard");
     expect(component.text()).not.toContain("Requests");
     expect(component.text()).not.toContain("Staff");
   });

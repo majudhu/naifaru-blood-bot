@@ -186,14 +186,14 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
   <h1 class="text-2xl font-semibold pb-4">Dashboard</h1>
 
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
-    <NuxtLink to="/requests">
+    <NuxtLink to="#/requests">
       <UCard
         :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
         title="0"
         description="Active Requests"
       />
     </NuxtLink>
-    <NuxtLink to="/requests?priority=1">
+    <NuxtLink to="#/requests?priority=1">
       <UCard
         :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
         title="0"

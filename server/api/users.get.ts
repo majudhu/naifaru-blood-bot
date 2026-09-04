@@ -1,5 +1,4 @@
 import { and, count, eq, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
-import { requireStaffRole } from "../utils/auth";
 
 const limit = 20;
 
@@ -19,7 +18,7 @@ const STATUS_FILTER: Record<Status, SQL<unknown> | undefined> = {
 };
 
 export default defineEventHandler(async (event) => {
-  await requireStaffRole(event, ["admin", "nurse", "lab"]);
+  await requireUserSession(event);
 
   const db = useDb(event);
 

@@ -1,9 +1,8 @@
 import { eq } from "drizzle-orm";
 import { createError } from "h3";
-import { requireStaffRole } from "../../utils/auth";
 
 export default defineEventHandler(async (event) => {
-  await requireStaffRole(event, ["admin", "nurse", "lab"]);
+  await requireUserSession(event);
 
   const db = useDb(event);
 

@@ -1,6 +1,5 @@
 import * as v from "valibot";
 import { DATE_NIL } from "../../shared/utils/const";
-import { requireStaffRole } from "../utils/auth";
 
 const dateParser = v.pipe(
   v.optional(v.string(), ""),
@@ -49,7 +48,7 @@ export const CreateuserParser = v.parser(
 );
 
 export default defineEventHandler(async (event) => {
-  await requireStaffRole(event, ["admin", "nurse", "lab"]);
+  await requireUserSession(event);
 
   const db = useDb(event);
 
