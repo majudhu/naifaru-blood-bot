@@ -10,30 +10,20 @@ export function escapeHtml(value: string | number | boolean | null | undefined) 
 }
 
 export function formatPhoneLink(phone: string | null) {
-  return phone ? `<code>${escapeHtml(phone)}</code>` : "not provided";
+  // Leave phone numbers unformatted so Telegram can detect them and show its phone menu.
+  return phone ? escapeHtml(phone) : "not provided";
 }
 
 export function formatChannelRequest(
   request: Pick<BloodRequest, "bloodType">,
-  requester: Pick<User, "name" | "phone" | "telegramUsername" | "telegramUserId">,
+  requester: Pick<User, "name" | "phone">,
 ) {
-  const telegramUrl = requester.telegramUsername
-    ? `https://t.me/${encodeURIComponent(requester.telegramUsername)}`
-    : requester.telegramUserId
-      ? `tg://user?id=${requester.telegramUserId}`
-      : undefined;
-
   return [
     "<b>BLOOD REQUEST</b>",
     `Blood group: <b>${escapeHtml(request.bloodType)}</b>`,
     `Requester: ${escapeHtml(requester.name)}`,
     `Phone/mobile: ${formatPhoneLink(requester.phone)}`,
-    telegramUrl
-      ? `<a href="${telegramUrl}">${requester.telegramUsername ? "Message requester" : "View requester on Telegram"}</a>`
-      : undefined,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n");
 }
 
 export function formatMatchingRequestNotification(

@@ -238,10 +238,8 @@ describe("Telegram text fallback", () => {
         call.method === "sendMessage" && String(call.payload.text).includes("BLOOD REQUEST"),
     );
     expect(channelMessage?.payload.text).toContain("Requester: Aisha");
-    expect(channelMessage?.payload.text).toContain("Phone/mobile: <code>7771234</code>");
-    expect(channelMessage?.payload.text).toContain(
-      '<a href="https://t.me/aisha">Message requester</a>',
-    );
+    expect(channelMessage?.payload.text).toContain("Phone/mobile: 7771234");
+    expect(channelMessage?.payload.text).not.toContain("<a href=");
 
     expect(sendNotificationBatch).toHaveBeenCalledWith([
       {

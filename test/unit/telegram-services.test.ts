@@ -51,18 +51,18 @@ beforeEach(() => {
 });
 
 describe("Channel requester contacts", () => {
-  it("escapes contact details and links the profile when there is no username", () => {
+  it("escapes contact details and leaves the phone number unformatted", () => {
     const text = formatChannelRequest(
       { bloodType: "O+" },
       user({ name: "Aisha & Ali <test>", telegramUsername: null }),
     );
 
     expect(text).toContain("Requester: Aisha &amp; Ali &lt;test&gt;");
-    expect(text).toContain("Phone/mobile: <code>7771234</code>");
-    expect(text).toContain('<a href="tg://user?id=12345">View requester on Telegram</a>');
+    expect(text).toContain("Phone/mobile: 7771234");
+    expect(text).not.toContain("<a href=");
   });
 
-  it("omits the Telegram link when no Telegram identity is available", () => {
+  it("indicates when the phone number is missing", () => {
     const text = formatChannelRequest(
       { bloodType: "O+" },
       user({ phone: null, telegramUserId: null, telegramUsername: null }),
@@ -186,14 +186,14 @@ describe("Telegram blood requests", () => {
     expect(channelText).not.toContain("Units");
     expect(channelText).not.toContain("Urgent");
     expect(channelText).toContain("Requester: Aisha");
-    expect(channelText).toContain("Phone/mobile: <code>9991111</code>");
-    expect(channelText).toContain('<a href="https://t.me/aisha">Message requester</a>');
+    expect(channelText).toContain("Phone/mobile: 9991111");
+    expect(channelText).not.toContain("<a href=");
 
     const notificationText = formatMatchingRequestNotification(requester, request);
     expect(notificationText).toContain("<b>Someone needs blood — can you help?</b>");
     expect(notificationText).toContain("Requester: Aisha");
     expect(notificationText).toContain("Blood group: <b>O+</b>");
-    expect(notificationText).toContain("Phone: <code>9991111</code>");
+    expect(notificationText).toContain("Phone: 9991111");
 
     const [readyDonorText] = formatReadyDonorMessages(
       [
@@ -215,7 +215,7 @@ describe("Telegram blood requests", () => {
     );
     expect(offerText).toContain("A donor offered to help.");
     expect(offerText).toContain("Name: New Helper");
-    expect(offerText).toContain("Phone: <code>7778888</code>");
+    expect(offerText).toContain("Phone: 7778888");
   });
 
   it("keeps adding donors while the message remains within Telegram's limit", () => {
