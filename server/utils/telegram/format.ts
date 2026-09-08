@@ -13,10 +13,27 @@ export function formatPhoneLink(phone: string | null) {
   return phone ? `<code>${escapeHtml(phone)}</code>` : "not provided";
 }
 
-export function formatChannelRequest(request: Pick<BloodRequest, "bloodType">) {
-  return ["<b>BLOOD REQUEST</b>", `Blood group: <b>${escapeHtml(request.bloodType)}</b>`].join(
-    "\n",
-  );
+export function formatChannelRequest(
+  request: Pick<BloodRequest, "bloodType">,
+  requester: Pick<User, "name" | "phone" | "telegramUsername" | "telegramUserId">,
+) {
+  const telegramUrl = requester.telegramUsername
+    ? `https://t.me/${encodeURIComponent(requester.telegramUsername)}`
+    : requester.telegramUserId
+      ? `tg://user?id=${requester.telegramUserId}`
+      : undefined;
+
+  return [
+    "<b>BLOOD REQUEST</b>",
+    `Blood group: <b>${escapeHtml(request.bloodType)}</b>`,
+    `Requester: ${escapeHtml(requester.name)}`,
+    `Phone/mobile: ${formatPhoneLink(requester.phone)}`,
+    telegramUrl
+      ? `<a href="${telegramUrl}">${requester.telegramUsername ? "Message requester" : "View requester on Telegram"}</a>`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function formatMatchingRequestNotification(

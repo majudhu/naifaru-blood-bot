@@ -50,6 +50,29 @@ beforeEach(() => {
   vi.useRealTimers();
 });
 
+describe("Channel requester contacts", () => {
+  it("escapes contact details and links the profile when there is no username", () => {
+    const text = formatChannelRequest(
+      { bloodType: "O+" },
+      user({ name: "Aisha & Ali <test>", telegramUsername: null }),
+    );
+
+    expect(text).toContain("Requester: Aisha &amp; Ali &lt;test&gt;");
+    expect(text).toContain("Phone/mobile: <code>7771234</code>");
+    expect(text).toContain('<a href="tg://user?id=12345">View requester on Telegram</a>');
+  });
+
+  it("omits the Telegram link when no Telegram identity is available", () => {
+    const text = formatChannelRequest(
+      { bloodType: "O+" },
+      user({ phone: null, telegramUserId: null, telegramUsername: null }),
+    );
+
+    expect(text).toContain("Phone/mobile: not provided");
+    expect(text).not.toContain("<a href=");
+  });
+});
+
 describe("Telegram webhook security", () => {
   it("accepts matching webhook secrets and rejects mismatches", () => {
     expect(() => assertTelegramWebhookSecret("secret", "secret")).not.toThrow();
@@ -157,12 +180,14 @@ describe("Telegram blood requests", () => {
       }),
     );
 
-    const channelText = formatChannelRequest(request);
+    const channelText = formatChannelRequest(request, requester);
     expect(channelText).toContain("Blood group: <b>O+</b>");
     expect(channelText).not.toContain("Location");
     expect(channelText).not.toContain("Units");
     expect(channelText).not.toContain("Urgent");
-    expect(channelText).not.toContain("9991111");
+    expect(channelText).toContain("Requester: Aisha");
+    expect(channelText).toContain("Phone/mobile: <code>9991111</code>");
+    expect(channelText).toContain('<a href="https://t.me/aisha">Message requester</a>');
 
     const notificationText = formatMatchingRequestNotification(requester, request);
     expect(notificationText).toContain("<b>Someone needs blood — can you help?</b>");

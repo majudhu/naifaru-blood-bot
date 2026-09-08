@@ -233,6 +233,16 @@ describe("Telegram text fallback", () => {
 
     await bot.handleUpdate(callbackUpdate(5, "request:type:O+"));
 
+    const channelMessage = calls.find(
+      (call) =>
+        call.method === "sendMessage" && String(call.payload.text).includes("BLOOD REQUEST"),
+    );
+    expect(channelMessage?.payload.text).toContain("Requester: Aisha");
+    expect(channelMessage?.payload.text).toContain("Phone/mobile: <code>7771234</code>");
+    expect(channelMessage?.payload.text).toContain(
+      '<a href="https://t.me/aisha">Message requester</a>',
+    );
+
     expect(sendNotificationBatch).toHaveBeenCalledWith([
       {
         body: {

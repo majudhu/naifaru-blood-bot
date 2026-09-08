@@ -229,7 +229,7 @@ export function createTelegramBot(input: {
 
     const message = await ctx.api.sendMessage(
       input.config.channelId,
-      formatChannelRequest(request),
+      formatChannelRequest(request, user),
       {
         ...html,
         reply_markup: helpKeyboard(request.id, input.config.botUsername),
