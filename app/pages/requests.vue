@@ -223,7 +223,7 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
     <UButton
       color="neutral"
       variant="subtle"
-      :label="`Month: ${summary.data?.value?.total}`"
+      :label="`Month: ${summary.data?.value?.month}`"
       size="md"
       class="font-semibold"
       @click="
