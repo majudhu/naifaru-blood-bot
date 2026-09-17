@@ -62,6 +62,7 @@ const search = ref("");
 const searchDebounced = refDebounced(search, 300);
 const type = ref("All");
 const donorStatus = ref("ready");
+const sex = ref("all");
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editDetails = shallowRef<Partial<InternalApi["/api/users/:id"]["get"]>>({});
@@ -76,7 +77,7 @@ const age = computed(() => formatAge(edit.dob));
 
 const dashboard = await useLazyFetch("/api/dashboard");
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
-  query: { page, search: searchDebounced, type, status: donorStatus },
+  query: { page, search: searchDebounced, type, status: donorStatus, sex },
 });
 
 const BLANK_USER = {
@@ -222,6 +223,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
       @click="
         donorStatus = 'ready';
         type = 'All';
+        sex = 'all';
       "
     />
     <UButton
@@ -240,6 +242,18 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
     <UInput v-model="search" placeholder="Search" @change="page = 1" />
     <USelect v-model="type" :items="bloodTypes" class="w-20" @change="page = 1" />
     <USelect v-model="donorStatus" :items="donorStatuses" class="w-32" @change="page = 1" />
+
+    <USelect
+      v-if="user?.role === 'admin'"
+      v-model="sex"
+      :items="[
+        { label: 'All', value: 'all' },
+        { label: 'Male', value: 'm' },
+        { label: 'Female', value: 'f' },
+      ]"
+      class="w-32"
+      @change="page = 1"
+    />
 
     <small class="text-muted text-sm">{{ data?.total }} Users</small>
 
@@ -306,9 +320,13 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
             />
           </UFormField>
 
-          <small class="flex flex-wrap md:grid-cols-2">
+          <small class="flex flex-wrap md:grid-cols-2 items-center">
             {{ lastDonated }} &emsp; Age: {{ age }}
           </small>
+
+          <UFormField label="Address">
+            <UInput v-model="edit.address" class="w-full" :disabled="isReadOnly" />
+          </UFormField>
 
           <UCollapsible
             class="md:col-span-2"
@@ -322,10 +340,6 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
 
               <UFormField label="Date of birth">
                 <UInput v-model="edit.dob" class="w-full" type="date" :disabled="isReadOnly" />
-              </UFormField>
-
-              <UFormField label="Address">
-                <UInput v-model="edit.address" class="w-full" :disabled="isReadOnly" />
               </UFormField>
 
               <UFormField label="Island">

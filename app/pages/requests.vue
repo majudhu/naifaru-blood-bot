@@ -26,6 +26,7 @@ const page = ref(1);
 const search = ref("");
 const type = ref("All");
 const status = ref("all");
+const month = ref(0);
 const priority = ref(query.priority === "1");
 const showDialog = ref(false);
 const isLoading = ref(false);
@@ -33,6 +34,7 @@ const editDetails = shallowRef<Partial<RequestDetails>>({});
 
 const isNew = computed(() => !editDetails.value.id);
 
+const summary = await useLazyFetch("/api/requests-summary", { query: { month } });
 const { data, pending, refresh } = await useLazyFetch("/api/requests", {
   query: { page, search, type, status, priority },
 });
@@ -204,6 +206,40 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
         </UForm>
       </template>
     </UModal>
+  </div>
+
+  <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
+    <UButton
+      color="neutral"
+      variant="subtle"
+      :label="`Total: ${summary.data?.value?.total}`"
+      size="md"
+      class="font-semibold"
+      @click="
+        type = 'All';
+        month = 0;
+      "
+    />
+    <UButton
+      color="neutral"
+      variant="subtle"
+      :label="`Month: ${summary.data?.value?.total}`"
+      size="md"
+      class="font-semibold"
+      @click="
+        type = 'All';
+        month = 1;
+      "
+    />
+    <UButton
+      v-for="group in summary.data?.value?.groups"
+      color="neutral"
+      variant="subtle"
+      size="md"
+      @click="void (type = group.type)"
+    >
+      <strong>{{ group.type }}:</strong> {{ group.total }}
+    </UButton>
   </div>
 
   <div class="flex items-center flex-wrap gap-4">

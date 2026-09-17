@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
     search?: string;
     type?: (typeof bloodTypeValues)[number] | "All";
     status?: Status;
+    sex?: "all" | "m" | "f";
   }>(event);
 
   const offset = ((+query.page! || 1) - 1) * limit;
@@ -42,6 +43,11 @@ export default defineEventHandler(async (event) => {
       : undefined,
     query.type && query.type !== "All" ? eq(schema.users.bloodType, query.type) : undefined,
     STATUS_FILTER[query.status!],
+    query.sex === "m"
+      ? eq(schema.users.sex, "m")
+      : query.sex === "f"
+        ? eq(schema.users.sex, "f")
+        : undefined,
   );
 
   const [data, [total]] = await Promise.all([
