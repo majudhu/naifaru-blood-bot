@@ -118,20 +118,17 @@ export const donations = sqliteTable(
     donorId: integer("donor_id")
       .notNull()
       .references(() => users.id),
-    requestId: integer("request_id").references(() => bloodRequests.id),
-    recordedByStaffId: integer("recorded_by_staff_id").references(() => staff.id),
+    bloodType: text("blood_type", { enum: bloodTypeValues }).notNull().default(""),
     donatedAt: integer("donated_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),
-    notes: text("notes").notNull().default(""),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),
   },
   (table) => [
     index("donations_donor_id_idx").on(table.donorId),
-    index("donations_request_id_idx").on(table.requestId),
-    index("donations_recorded_by_staff_id_idx").on(table.recordedByStaffId),
+    index("donations_blood_type_idx").on(table.bloodType),
     index("donations_donated_at_idx").on(table.donatedAt),
   ],
 );
@@ -164,11 +161,6 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const bloodRequestsRelations = relations(bloodRequests, ({ many }) => ({
   responses: many(donorResponses),
-  donations: many(donations),
-}));
-
-export const staffRelations = relations(staff, ({ many }) => ({
-  recordedDonations: many(donations),
 }));
 
 export const donorResponsesRelations = relations(donorResponses, ({ one }) => ({
@@ -186,14 +178,6 @@ export const donationsRelations = relations(donations, ({ one }) => ({
   donor: one(users, {
     fields: [donations.donorId],
     references: [users.id],
-  }),
-  request: one(bloodRequests, {
-    fields: [donations.requestId],
-    references: [bloodRequests.id],
-  }),
-  recordedByStaff: one(staff, {
-    fields: [donations.recordedByStaffId],
-    references: [staff.id],
   }),
 }));
 

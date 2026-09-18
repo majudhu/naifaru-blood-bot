@@ -336,11 +336,107 @@ describe("users API", () => {
     );
 
     const db = createDbMock();
+    db.queueSelect([{ lastDonatedAt: new Date(DATE_NIL) }]);
     db.queueUpdate({ meta: { changes: 0 } });
     await expectRejectsWithStatus(
       handler(createEvent({ body: validUserBody, db, params: { id: "404" } })),
       404,
     );
+  });
+
+  it("records a donation when the last donation date changes", async () => {
+    const { default: handler } = await import("../../server/api/users/[id].put");
+    const db = createDbMock();
+    db.queueSelect([{ lastDonatedAt: new Date(DATE_NIL) }]);
+    db.queueUpdate({ meta: { changes: 1 } });
+    const insert = db.queueInsert([{ id: 99 }]);
+    const event = createEvent({
+      body: { ...validUserBody, lastDonatedAt: "2026-09-01" },
+      db,
+      params: { id: "7" },
+    });
+
+    await expect(handler(event)).resolves.toBeNull();
+
+    expect(insert.values).toHaveBeenCalledWith({
+      donorId: 7,
+      bloodType: "A+",
+      donatedAt: new Date("2026-09-01"),
+    });
+  });
+
+  it("does not record a donation when the last donation date is unchanged", async () => {
+    const { default: handler } = await import("../../server/api/users/[id].put");
+    const db = createDbMock();
+    db.queueSelect([{ lastDonatedAt: new Date("2026-09-01") }]);
+    db.queueUpdate({ meta: { changes: 1 } });
+    const event = createEvent({
+      body: { ...validUserBody, lastDonatedAt: "2026-09-01" },
+      db,
+      params: { id: "7" },
+    });
+
+    await expect(handler(event)).resolves.toBeNull();
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("does not record a donation when the last donation date is cleared", async () => {
+    const { default: handler } = await import("../../server/api/users/[id].put");
+    const db = createDbMock();
+    db.queueSelect([{ lastDonatedAt: new Date("2026-09-01") }]);
+    db.queueUpdate({ meta: { changes: 1 } });
+    const event = createEvent({
+      body: { ...validUserBody, lastDonatedAt: "" },
+      db,
+      params: { id: "7" },
+    });
+
+    await expect(handler(event)).resolves.toBeNull();
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("donations API", () => {
+  it("returns paginated donations with donor details", async () => {
+    const { default: handler } = await import("../../server/api/donations.get");
+    const db = createDbMock();
+    const listQuery = db.queueSelect([
+      {
+        bloodType: "A+",
+        donatedAt: new Date("2026-09-01"),
+        id: 1,
+        donor: { id: 7, name: "Aisha" },
+      },
+    ]);
+    db.queueSelect([{ count: 3 }]);
+    const event = createEvent({
+      db,
+      query: { page: "1", search: "aisha", type: "A+" },
+    });
+
+    await expect(handler(event)).resolves.toEqual({
+      data: [
+        {
+          bloodType: "A+",
+          donatedAt: new Date("2026-09-01"),
+          id: 1,
+          donor: { id: 7, name: "Aisha" },
+        },
+      ],
+      total: 3,
+    });
+
+    expect(listQuery.limit).toHaveBeenCalledWith(20);
+    expect(listQuery.offset).toHaveBeenCalledWith(0);
+  });
+
+  it("rejects non-admin donations access", async () => {
+    const { default: handler } = await import("../../server/api/donations.get");
+    const event = createEvent({ session: { user: { id: 3, role: "nurse" } } });
+
+    await expectRejectsWithStatus(handler(event), 403);
   });
 });
 

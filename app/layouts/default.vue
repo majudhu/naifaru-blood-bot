@@ -36,6 +36,12 @@ const items = computed<NavigationMenuItem[]>(() => [
           to: "/staff",
           onSelect,
         },
+        {
+          label: "Donations",
+          icon: "i-lucide-droplet",
+          to: "/donations",
+          onSelect,
+        },
       ]
     : []),
 ]);
