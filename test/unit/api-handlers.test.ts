@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DATE_NIL } from "../../shared/utils/const";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import {
   autoImportMocks,
   createDbMock,
@@ -348,7 +349,7 @@ describe("requests API", () => {
     const { default: handler } = await import("../../server/api/requests.get");
     const db = createDbMock();
     const listQuery = db.queueSelect([{ bloodType: "O+", id: 4, urgent: true }]);
-    db.queueSelect([{ count: 22 }]);
+    const countQuery = db.queueSelect([{ count: 22 }]);
     const event = createEvent({
       db,
       query: { page: "2", priority: "1", search: "health", status: "open", type: "O+" },
@@ -361,6 +362,7 @@ describe("requests API", () => {
 
     expect(listQuery.limit).toHaveBeenCalledWith(20);
     expect(listQuery.offset).toHaveBeenCalledWith(20);
+    expect(countQuery.where).toHaveBeenCalledWith(listQuery.where.mock.calls[0]![0]);
   });
 
   it("validates and inserts blood requests", async () => {
@@ -395,6 +397,7 @@ describe("requests API", () => {
     await expect(handler(createEvent({ db, params: { id: "3" } }))).resolves.toEqual({
       id: 3,
       location: "Health Centre",
+      responses: [],
     });
 
     const missingDb = createDbMock();
@@ -403,6 +406,37 @@ describe("requests API", () => {
       handler(createEvent({ db: missingDb, params: { id: "404" } })),
       404,
     );
+    expect(missingDb.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads only the selected request's donor responses with contact details and all statuses", async () => {
+    const { default: handler } = await import("../../server/api/requests/[id].get");
+    const db = createDbMock();
+    db.queueSelect([{ id: 3, location: "Health Centre" }]);
+    const responses = ["contacted", "accepted", "declined", "donated"].map((status, index) => ({
+      id: index + 1,
+      donorId: index + 10,
+      status,
+      respondedAt: new Date("2026-09-18T00:00:00Z"),
+      notes: "Follow up",
+      donor: { id: index + 10, name: "Test donor", phone: "7000000", telegramUsername: null },
+    }));
+    const responseQuery = db.queueSelect(responses);
+
+    await expect(handler(createEvent({ db, params: { id: "3" } }))).resolves.toMatchObject({
+      id: 3,
+      responses,
+    });
+    const dialect = new SQLiteSyncDialect();
+    expect(
+      dialect.sqlToQuery(
+        responseQuery.where.mock.calls[0]![0] as Parameters<typeof dialect.sqlToQuery>[0],
+      ),
+    ).toMatchObject({
+      sql: '"donor_responses"."request_id" = ?',
+      params: [3],
+    });
+    expect(responseQuery.orderBy).toHaveBeenCalledOnce();
   });
 
   it("validates request update ids and reports no-row updates", async () => {

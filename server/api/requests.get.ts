@@ -1,4 +1,4 @@
-import { and, count, desc, eq, like, or } from "drizzle-orm";
+import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 
 const limit = 20;
 
@@ -15,10 +15,30 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event);
 
+  const filters = and(
+    query.search
+      ? or(
+          like(schema.bloodRequests.location, `%${query.search}%`),
+          like(schema.bloodRequests.island, `%${query.search}%`),
+        )
+      : undefined,
+    query.type && query.type !== "All" ? eq(schema.bloodRequests.bloodType, query.type) : undefined,
+    query.status && query.status !== "all"
+      ? eq(schema.bloodRequests.status, query.status)
+      : undefined,
+    query.priority === "true" || query.priority === "1"
+      ? eq(schema.bloodRequests.urgent, true)
+      : undefined,
+  );
+
   const [data, [total]] = await Promise.all([
     db
       .select({
         id: schema.bloodRequests.id,
+        responseCount:
+          sql<number>`(SELECT count(*) FROM ${schema.donorResponses} WHERE ${schema.donorResponses.requestId} = ${schema.bloodRequests.id})`.mapWith(
+            Number,
+          ),
         bloodType: schema.bloodRequests.bloodType,
         location: schema.bloodRequests.location,
         island: schema.bloodRequests.island,
@@ -35,29 +55,11 @@ export default defineEventHandler(async (event) => {
       })
       .from(schema.bloodRequests)
       .leftJoin(schema.users, eq(schema.bloodRequests.userId, schema.users.id))
-      .where(
-        and(
-          query.search
-            ? or(
-                like(schema.bloodRequests.location, `%${query.search}%`),
-                like(schema.bloodRequests.island, `%${query.search}%`),
-              )
-            : undefined,
-          query.type && query.type !== "All"
-            ? eq(schema.bloodRequests.bloodType, query.type)
-            : undefined,
-          query.status && query.status !== "all"
-            ? eq(schema.bloodRequests.status, query.status)
-            : undefined,
-          query.priority === "true" || query.priority === "1"
-            ? eq(schema.bloodRequests.urgent, true)
-            : undefined,
-        ),
-      )
+      .where(filters)
       .orderBy(desc(schema.bloodRequests.createdAt))
       .limit(limit)
       .offset(((+query.page! || 1) - 1) * limit),
-    db.select({ count: count() }).from(schema.bloodRequests),
+    db.select({ count: count() }).from(schema.bloodRequests).where(filters),
   ]);
 
   return { data, total: total?.count };

@@ -33,6 +33,16 @@ const isLoading = ref(false);
 const editDetails = shallowRef<Partial<RequestDetails>>({});
 
 const isNew = computed(() => !editDetails.value.id);
+const responseStatuses = {
+  contacted: { label: "Contacted", color: "info" },
+  accepted: { label: "Accepted", color: "success" },
+  declined: { label: "Declined", color: "error" },
+  donated: { label: "Donated", color: "primary" },
+} as const;
+
+watch([search, type, status, priority], () => {
+  page.value = 1;
+});
 
 const summary = await useLazyFetch("/api/requests-summary", { query: { month } });
 const { data, pending, refresh } = await useLazyFetch("/api/requests", {
@@ -57,6 +67,7 @@ const columns: TableColumn<RequestRow>[] = [
     cell: ({ row }) => (row.original.urgent ? "✅" : "-"),
   },
   { accessorKey: "status", header: "Status" },
+  { accessorKey: "responseCount", header: "Responses" },
   {
     accessorKey: "updatedAt",
     header: "Updated",
@@ -119,9 +130,11 @@ async function onSelect(_event: Event, row: TableRow<RequestRow>) {
         notes: request.notes,
       });
       editDetails.value = request;
-      isLoading.value = false; // disable loading and enable submit only if the request fetch is successful
+      isLoading.value = false;
     }
   } catch (error) {
+    if (editDetails.value.id !== row.original.id) return;
+    isLoading.value = false;
     toast.add({
       title: "Could not load request details",
       description: (error as FetchError)?.data?.message ?? (error as Error).message,
@@ -161,7 +174,7 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
     <UModal
       v-model:open="showDialog"
       :title="isNew ? 'Add Request' : 'Edit Request'"
-      :ui="{ content: 'max-w-2xl' }"
+      :ui="{ content: 'max-w-3xl' }"
     >
       <UButton v-if="canManageRequests" icon="i-lucide-plus" @click="add">Add Request</UButton>
       <template #body>
@@ -195,6 +208,50 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
             </div>
           </dl>
           <p v-else class="text-sm text-muted">No requester linked</p>
+        </section>
+        <section v-if="!isNew" class="mb-4 rounded-lg border border-default p-4">
+          <h2 class="mb-2 text-sm font-semibold">
+            Donor responses<span v-if="editDetails.responses">
+              ({{ editDetails.responses.length }})</span
+            >
+          </h2>
+          <p v-if="!editDetails.responses" class="text-sm text-muted">
+            {{ isLoading ? "Loading donor responses…" : "Donor responses could not be loaded." }}
+          </p>
+          <p v-else-if="!editDetails.responses.length" class="text-sm text-muted">
+            No donor responses yet.
+          </p>
+          <ul v-else class="divide-y divide-default">
+            <li
+              v-for="response in editDetails.responses"
+              :key="response.id"
+              class="py-3 first:pt-0 last:pb-0"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 text-sm">
+                  <p class="font-medium text-default">
+                    {{ response.donor?.name ?? `Donor #${response.donorId}` }}
+                  </p>
+                  <p v-if="response.donor?.telegramUsername" class="text-muted">
+                    @{{ response.donor.telegramUsername }}
+                  </p>
+                  <p>{{ response.donor?.phone || "Phone not provided" }}</p>
+                </div>
+                <UBadge :color="responseStatuses[response.status].color" variant="subtle">
+                  {{ responseStatuses[response.status].label }}
+                </UBadge>
+              </div>
+              <NuxtTime
+                :datetime="response.respondedAt"
+                date-style="medium"
+                time-style="short"
+                class="text-xs text-muted"
+              />
+              <p v-if="response.notes" class="mt-1 whitespace-pre-wrap break-words text-sm">
+                {{ response.notes }}
+              </p>
+            </li>
+          </ul>
         </section>
         <UForm :state="edit" @submit="save" class="grid md:grid-cols-2 gap-3">
           <UFormField label="Blood Type">
@@ -233,7 +290,12 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
             <UTextarea v-model="edit.notes" class="w-full" />
           </UFormField>
 
-          <UButton type="submit" icon="i-lucide-save" :loading="isLoading" :disabled="isLoading">
+          <UButton
+            type="submit"
+            icon="i-lucide-save"
+            :loading="isLoading"
+            :disabled="isLoading || (!isNew && !editDetails.responses)"
+          >
             {{ isNew ? "Add" : "Save" }}
           </UButton>
         </UForm>
