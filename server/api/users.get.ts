@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
         id: schema.users.id,
         name: schema.users.name,
         phone: schema.users.phone,
-        nid: schema.users.nid,
+        address: schema.users.address,
         bloodType: schema.users.bloodType,
         lastDonatedAt: schema.users.lastDonatedAt,
         isAvailable: schema.users.isAvailable,

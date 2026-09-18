@@ -41,6 +41,8 @@ const { data, pending, refresh } = await useLazyFetch("/api/requests", {
 
 const columns: TableColumn<RequestRow>[] = [
   { accessorKey: "id", header: "#" },
+  { id: "requester", header: "Requester" },
+  { id: "phone", header: "Phone" },
   { accessorKey: "bloodType", header: "Blood Type" },
   { accessorKey: "location", header: "Location" },
   {
@@ -163,6 +165,37 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
     >
       <UButton v-if="canManageRequests" icon="i-lucide-plus" @click="add">Add Request</UButton>
       <template #body>
+        <section v-if="!isNew" class="mb-4 rounded-lg border border-default p-4">
+          <h2 class="mb-2 text-sm font-semibold">Requester details</h2>
+          <dl v-if="editDetails.requester" class="grid gap-3 sm:grid-cols-2 text-sm">
+            <div>
+              <dt class="text-muted">Name</dt>
+              <dd>{{ editDetails.requester.name }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted">Phone number</dt>
+              <dd>
+                <span v-if="editDetails.requester.phone">{{ editDetails.requester.phone }}</span>
+                <span v-else class="text-muted">Not provided</span>
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted">Telegram username</dt>
+              <dd>
+                {{
+                  editDetails.requester.telegramUsername
+                    ? `@${editDetails.requester.telegramUsername}`
+                    : "Not provided"
+                }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted">User ID</dt>
+              <dd>{{ editDetails.requester.id }}</dd>
+            </div>
+          </dl>
+          <p v-else class="text-sm text-muted">No requester linked</p>
+        </section>
         <UForm :state="edit" @submit="save" class="grid md:grid-cols-2 gap-3">
           <UFormField label="Blood Type">
             <USelect v-model="edit.bloodType" :items="bloodTypes" class="w-full" required />
@@ -285,6 +318,19 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
   </div>
 
   <UTable :data="data?.data" :columns="columns" :loading="pending" @select="onSelect">
+    <template #requester-cell="{ row }">
+      <div v-if="row.original.requester">
+        <div>{{ row.original.requester.name }}</div>
+        <div v-if="row.original.requester.telegramUsername" class="text-sm text-muted">
+          @{{ row.original.requester.telegramUsername }}
+        </div>
+      </div>
+      <span v-else class="text-muted">No requester linked</span>
+    </template>
+    <template #phone-cell="{ row }">
+      <span v-if="row.original.requester?.phone">{{ row.original.requester.phone }}</span>
+      <span v-else class="text-muted">Not provided</span>
+    </template>
     <template #status-cell="{ row }">
       <span class="capitalize">{{ row.original.status }}</span>
     </template>

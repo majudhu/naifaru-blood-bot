@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns } from "drizzle-orm";
 import { createError } from "h3";
 
 export default defineEventHandler(async (event) => {
@@ -9,8 +9,17 @@ export default defineEventHandler(async (event) => {
   const requestId = +getRouterParam(event, "id")!;
 
   const [request] = await db
-    .select()
+    .select({
+      ...getTableColumns(schema.bloodRequests),
+      requester: {
+        id: schema.users.id,
+        name: schema.users.name,
+        phone: schema.users.phone,
+        telegramUsername: schema.users.telegramUsername,
+      },
+    })
     .from(schema.bloodRequests)
+    .leftJoin(schema.users, eq(schema.bloodRequests.userId, schema.users.id))
     .where(eq(schema.bloodRequests.id, requestId))
     .limit(1);
 

@@ -32,6 +32,7 @@ export type TestEvent = {
 type QueryChain<T> = {
   from: MockFn;
   groupBy: MockFn;
+  leftJoin: MockFn;
   limit: MockFn;
   offset: MockFn;
   orderBy: MockFn;
@@ -50,6 +51,7 @@ function createQueryChain<T>(result: T): QueryChain<T> {
 
   chain.from = vi.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
   chain.groupBy = vi.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
+  chain.leftJoin = vi.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
   chain.limit = vi.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
   chain.offset = vi.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
   chain.orderBy = vi.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);

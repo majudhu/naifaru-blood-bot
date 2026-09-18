@@ -26,8 +26,15 @@ export default defineEventHandler(async (event) => {
         urgent: schema.bloodRequests.urgent,
         status: schema.bloodRequests.status,
         updatedAt: schema.bloodRequests.updatedAt,
+        requester: {
+          id: schema.users.id,
+          name: schema.users.name,
+          phone: schema.users.phone,
+          telegramUsername: schema.users.telegramUsername,
+        },
       })
       .from(schema.bloodRequests)
+      .leftJoin(schema.users, eq(schema.bloodRequests.userId, schema.users.id))
       .where(
         and(
           query.search

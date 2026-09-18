@@ -16,8 +16,8 @@ const columns: TableColumn<UserRow>[] = [
     meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
   },
   {
-    accessorKey: "nid",
-    header: "NID / PP No.",
+    accessorKey: "address",
+    header: "Address",
     meta: { class: { th: "hidden md:table-cell", td: "hidden md:table-cell" } },
   },
   { accessorKey: "bloodType", header: "Blood Type" },
