@@ -232,6 +232,41 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
       "
     />
     <UButton
+      color="neutral"
+      variant="subtle"
+      :label="`3 Month: ${summary.data?.value?.month3}`"
+      size="md"
+      class="font-semibold"
+      @click="
+        type = 'All';
+        month = 3;
+      "
+    />
+    <UButton
+      color="neutral"
+      variant="subtle"
+      :label="`6 Month: ${summary.data?.value?.month6}`"
+      size="md"
+      class="font-semibold"
+      @click="
+        type = 'All';
+        month = 6;
+      "
+    />
+    <UButton
+      color="neutral"
+      variant="subtle"
+      :label="`Year: ${summary.data?.value?.year}`"
+      size="md"
+      class="font-semibold"
+      @click="
+        type = 'All';
+        month = 12;
+      "
+    />
+  </div>
+  <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
+    <UButton
       v-for="group in summary.data?.value?.groups"
       color="neutral"
       variant="subtle"
