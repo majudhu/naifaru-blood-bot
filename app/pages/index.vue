@@ -8,35 +8,6 @@ import { PER_PAGE } from "~~/shared/utils/const";
 
 type UserRow = NonNullable<typeof data.value>["data"][number];
 
-const columns: TableColumn<UserRow>[] = [
-  { accessorKey: "id", header: "#" },
-  { accessorKey: "name", header: "Name" },
-  {
-    accessorKey: "phone",
-    header: "Phone",
-    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
-  },
-  {
-    accessorKey: "address",
-    header: "Address",
-    meta: { class: { th: "hidden md:table-cell", td: "hidden md:table-cell" } },
-  },
-  { accessorKey: "bloodType", header: "Blood Type" },
-  {
-    accessorKey: "lastDonatedAt",
-    header: "Last Donated",
-    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
-  },
-  {
-    accessorKey: "isAvailable",
-    header: "Donor",
-    cell({ row }) {
-      const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / DAY_MS);
-      return row.original.isAvailable ? (days < 1 ? "Available" : `⏳ ${days} days`) : "-";
-    },
-  },
-];
-
 const bloodTypes: SelectItem[] = Array.from(bloodTypeValues);
 bloodTypes[0] = "All";
 const sexes: SelectItem[] = [
@@ -97,6 +68,35 @@ const BLANK_USER = {
 };
 
 const edit = reactive({ ...BLANK_USER });
+
+const columns: TableColumn<UserRow>[] = [
+  { accessorKey: "id", header: "#", accessorFn: (_, i) => PER_PAGE * (page.value - 1) + i + 1 },
+  { accessorKey: "name", header: "Name" },
+  {
+    accessorKey: "phone",
+    header: "Phone",
+    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
+  },
+  {
+    accessorKey: "address",
+    header: "Address",
+    meta: { class: { th: "hidden md:table-cell", td: "hidden md:table-cell" } },
+  },
+  { accessorKey: "bloodType", header: "Blood Type" },
+  {
+    accessorKey: "lastDonatedAt",
+    header: "Last Donated",
+    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
+  },
+  {
+    accessorKey: "isAvailable",
+    header: "Status",
+    cell({ row }) {
+      const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / DAY_MS);
+      return row.original.isAvailable ? (days < 1 ? "Available" : `⏳ ${days} days`) : "-";
+    },
+  },
+];
 
 function resetForm() {
   editDetails.value = {};
