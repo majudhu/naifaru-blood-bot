@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DATE_NIL } from "../../shared/utils/const";
+import { DATE_NIL, PER_PAGE } from "../../shared/utils/const";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import {
   autoImportMocks,
@@ -266,7 +266,7 @@ describe("users API", () => {
       total: 41,
     });
 
-    expect(listQuery.limit).toHaveBeenCalledWith(20);
+    expect(listQuery.limit).toHaveBeenCalledWith(PER_PAGE);
     expect(listQuery.offset).toHaveBeenCalledWith(40);
   });
 
@@ -428,7 +428,7 @@ describe("donations API", () => {
       total: 3,
     });
 
-    expect(listQuery.limit).toHaveBeenCalledWith(20);
+    expect(listQuery.limit).toHaveBeenCalledWith(PER_PAGE);
     expect(listQuery.offset).toHaveBeenCalledWith(0);
   });
 
@@ -456,8 +456,8 @@ describe("requests API", () => {
       total: 22,
     });
 
-    expect(listQuery.limit).toHaveBeenCalledWith(20);
-    expect(listQuery.offset).toHaveBeenCalledWith(20);
+    expect(listQuery.limit).toHaveBeenCalledWith(PER_PAGE);
+    expect(listQuery.offset).toHaveBeenCalledWith(PER_PAGE);
     expect(countQuery.where).toHaveBeenCalledWith(listQuery.where.mock.calls[0]![0]);
   });
 

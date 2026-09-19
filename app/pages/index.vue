@@ -4,6 +4,7 @@ import { refDebounced } from "@vueuse/core";
 import type { InternalApi } from "nitropack";
 import { FetchError } from "ofetch";
 import type { User as DbUser } from "~~/server/schema";
+import { PER_PAGE } from "~~/shared/utils/const";
 
 type UserRow = NonNullable<typeof data.value>["data"][number];
 
@@ -124,7 +125,7 @@ async function save(event: FormSubmitEvent<typeof edit>) {
 
     if (isNew.value)
       refresh().then(() => {
-        page.value = Math.ceil((data.value?.total! + 1) / 20) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
+        page.value = Math.ceil((data.value?.total! + 1) / PER_PAGE) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
       });
     else refresh();
 
@@ -412,5 +413,5 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
     </template>
   </UTable>
 
-  <UPagination class="py-4" v-model:page="page" :items-per-page="20" :total="data?.total" />
+  <UPagination class="py-4" v-model:page="page" :items-per-page="PER_PAGE" :total="data?.total" />
 </template>

@@ -1,6 +1,5 @@
 import { and, count, eq, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
-
-const limit = 20;
+import { PER_PAGE } from "~~/shared/utils/const";
 
 type Status = "ready" | "cooldown" | "donors" | "non-donors";
 
@@ -30,7 +29,7 @@ export default defineEventHandler(async (event) => {
     sex?: "all" | "m" | "f";
   }>(event);
 
-  const offset = ((+query.page! || 1) - 1) * limit;
+  const offset = ((+query.page! || 1) - 1) * PER_PAGE;
   const search = query.search;
 
   const where = and(
@@ -62,7 +61,7 @@ export default defineEventHandler(async (event) => {
         isAvailable: schema.users.isAvailable,
       })
       .from(schema.users)
-      .limit(limit)
+      .limit(PER_PAGE)
       .offset(offset)
       .where(where),
     db.select({ count: count() }).from(schema.users).where(where),

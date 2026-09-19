@@ -6,3 +6,5 @@ export const staffRoleValues = ["admin", "nurse", "lab"] as const;
 // HTML date inputs reject year zero, so normalize this sentinel before binding it to an input.
 export const DATE_NIL = "0000-01-01T00:00:00Z";
 export const DAY_MS = 1000 * 60 * 60 * 24;
+
+export const PER_PAGE = 20;

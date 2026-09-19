@@ -3,6 +3,7 @@ import type { FormSubmitEvent, SelectItem, TableColumn, TableRow } from "@nuxt/u
 import type { InternalApi } from "nitropack";
 import { FetchError } from "ofetch";
 import type { BloodRequest as DbBloodRequest } from "~~/server/schema";
+import { PER_PAGE } from "~~/shared/utils/const";
 
 type RequestRow = NonNullable<typeof data.value>["data"][number];
 type RequestDetails = InternalApi["/api/requests/:id"]["get"];
@@ -401,5 +402,5 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
     </template>
   </UTable>
 
-  <UPagination class="py-4" v-model:page="page" :items-per-page="20" :total="data?.total" />
+  <UPagination class="py-4" v-model:page="page" :items-per-page="PER_PAGE" :total="data?.total" />
 </template>

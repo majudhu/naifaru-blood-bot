@@ -1,7 +1,6 @@
 import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { createError } from "h3";
-
-const limit = 20;
+import { PER_PAGE } from "~~/shared/utils/const";
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event);
@@ -42,8 +41,8 @@ export default defineEventHandler(async (event) => {
       .leftJoin(schema.users, eq(schema.donations.donorId, schema.users.id))
       .where(where)
       .orderBy(desc(schema.donations.donatedAt))
-      .limit(limit)
-      .offset(((+query.page! || 1) - 1) * limit),
+      .limit(PER_PAGE)
+      .offset(((+query.page! || 1) - 1) * PER_PAGE),
     db.select({ count: count() }).from(schema.donations).where(where),
   ]);
 

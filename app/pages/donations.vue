@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SelectItem, TableColumn } from "@nuxt/ui";
+import { PER_PAGE } from "~~/shared/utils/const";
 
 type DonationRow = NonNullable<typeof data.value>["data"][number];
 
@@ -63,5 +64,5 @@ const columns: TableColumn<DonationRow>[] = [
     </template>
   </UTable>
 
-  <UPagination class="py-4" v-model:page="page" :items-per-page="20" :total="data?.total" />
+  <UPagination class="py-4" v-model:page="page" :items-per-page="PER_PAGE" :total="data?.total" />
 </template>
