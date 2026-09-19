@@ -11,6 +11,7 @@
 When asked to create a Git commit:
 
 - Review the complete staged diff before choosing the commit message. If files are not staged yet, review the intended working-tree changes and stage only changes that belong to the task.
+- Always use Conventional Commits for the subject: `type(scope): description`, with scope optional. Choose an appropriate type such as `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `build`, `ci`, `perf`, or `style`. Use `!` before the colon for breaking changes and explain them in the body or a `BREAKING CHANGE:` footer.
 - Use a one-line commit only when the change is small, singular, and fully explained by a specific subject.
 - Use a multi-line commit when it contains multiple meaningful changes, changes behavior in several ways, or needs rationale, migration details, compatibility notes, risks, or other context.
 - Write the subject in the imperative mood, make it specific to the primary outcome, and keep it concise (preferably 72 characters or fewer).
@@ -26,7 +27,7 @@ When asked to create a Git commit:
 
 Examples:
 
-- A focused change may use only: `Ignore generated files in Ox tools`
+- A focused change may use only: `chore(tooling): ignore generated files in Ox tools`
 - A commit with several outcomes should use a specific subject followed by a blank line and bullets describing those outcomes.
 
 ## Linting and formatting
