@@ -315,8 +315,6 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
             <UInput
               v-model="edit.nid"
               class="w-full"
-              minlength="7"
-              maxlength="7"
               :disabled="isNurse || isReadOnly"
             />
           </UFormField>
