@@ -43,7 +43,11 @@ export default defineEventHandler(async (event) => {
       .orderBy(desc(schema.donations.donatedAt))
       .limit(PER_PAGE)
       .offset(((+query.page! || 1) - 1) * PER_PAGE),
-    db.select({ count: count() }).from(schema.donations).where(where),
+    db
+      .select({ count: count() })
+      .from(schema.donations)
+      .leftJoin(schema.users, eq(schema.donations.donorId, schema.users.id))
+      .where(where),
   ]);
 
   return { data, total: total?.count };

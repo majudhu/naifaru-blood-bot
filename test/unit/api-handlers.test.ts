@@ -451,7 +451,7 @@ describe("donations API", () => {
         donor: { id: 7, name: "Aisha" },
       },
     ]);
-    db.queueSelect([{ count: 3 }]);
+    const countQuery = db.queueSelect([{ count: 3 }]);
     const event = createEvent({
       db,
       query: { page: "1", search: "aisha", type: "A+" },
@@ -471,6 +471,8 @@ describe("donations API", () => {
 
     expect(listQuery.limit).toHaveBeenCalledWith(PER_PAGE);
     expect(listQuery.offset).toHaveBeenCalledWith(0);
+    expect(listQuery.leftJoin).toHaveBeenCalledOnce();
+    expect(countQuery.leftJoin).toHaveBeenCalledOnce();
   });
 
   it("rejects non-admin donations access", async () => {
