@@ -32,6 +32,7 @@ export default defineNitroPlugin((nitroApp) => {
         continue;
       }
 
+      let chatId: number | undefined;
       try {
         const result = await findDonorNotification(db, job);
         if (result.status === "skip") {
@@ -45,6 +46,7 @@ export default defineNitroPlugin((nitroApp) => {
           continue;
         }
 
+        chatId = result.notification.chatId;
         await sendDonorNotification(api, config, result.notification);
         message.ack();
       } catch (error) {
@@ -58,8 +60,10 @@ export default defineNitroPlugin((nitroApp) => {
 
         if (disposition?.action === "discard") {
           console.warn({
+            chatId,
             event: "telegram_donor_notification_discarded",
             ...details,
+            userId: job.donorId,
           });
           message.ack();
           continue;

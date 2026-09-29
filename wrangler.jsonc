@@ -39,7 +39,7 @@
         "queue": "naifaru-blood-bot-donor-notifications",
         "max_batch_size": 10,
         "max_batch_timeout": 1,
-        "max_retries": 5,
+        "max_retries": 0,
         "dead_letter_queue": "naifaru-blood-bot-donor-notifications-dlq",
         "max_concurrency": 1,
         "retry_delay": 30,
