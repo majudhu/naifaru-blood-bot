@@ -25,6 +25,13 @@ const donorStatuses = [
   { label: "All users", value: "all" },
 ];
 
+const STATUS_FILTER: Record<DbUser["status"], string> = {
+  Donor: "donors",
+  Temporary: "temporary",
+  Reserved: "reserved",
+  "Non-Donor": "non-donors",
+};
+
 const toast = useToast();
 const { user } = useUserSession();
 const isNurse = computed(() => user.value?.role === "nurse");
@@ -129,11 +136,12 @@ async function save(event: FormSubmitEvent<typeof edit>) {
 
     donorStatus.value = event.data.status === "Non-Donor" ? "non-donors" : "donors";
 
-    if (isNew.value)
+    if (isNew.value) {
+      donorStatus.value = STATUS_FILTER[event.data.status];
       refresh().then(() => {
         page.value = Math.ceil((data.value?.total! + 1) / PER_PAGE) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
       });
-    else refresh();
+    } else refresh();
 
     toast.add({
       title: isNew.value ? "User added" : "User updated",
@@ -262,7 +270,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
       @change="page = 1"
     />
 
-    <small class="text-muted text-sm">{{ data?.total }} Users</small>
+    <small class="text-muted text-sm">{{ data?.total ?? 0 }} Users</small>
 
     <UModal
       v-model:open="showDialog"
