@@ -1,3 +1,5 @@
+import { formatDonorProfile } from "../../server/utils/telegram/format";
+import { mainMenuKeyboard } from "../../server/utils/telegram/keyboards";
 import { describe, expect, it, vi } from "vitest";
 import type { Update } from "grammy/types";
 
@@ -259,4 +261,65 @@ describe("Telegram text fallback", () => {
     );
     expect(events.at(-1)).toBe("queue:sendBatch");
   });
+});
+
+describe("Donor profiles", () => {
+  it.each(["Donor", "Temporary", "Reserved", "Non-Donor"] as const)(
+    "shows the profile button for every donor status: %s",
+    (status) => {
+      const buttons = mainMenuKeyboard(status)
+        .keyboard.flat()
+        .map((button) => (typeof button === "string" ? button : button.text));
+      expect(buttons.includes("My Donor Profile")).toBe(status !== "Non-Donor");
+    },
+  );
+
+  it("shows remaining days and the end date, escaping profile values", () => {
+    const text = formatDonorProfile(
+      user({
+        name: "<Aisha>",
+        lastDonatedAt: new Date("2026-01-01T00:00:00Z"),
+      }),
+      Date.parse("2026-03-31T12:00:00Z"),
+    );
+    expect(text).toContain("Name: &lt;Aisha&gt;");
+    expect(text).toContain("Cooldown: Active");
+    expect(text).toContain("Days remaining: 1");
+    expect(text).toContain("Next eligible date: 1 April 2026");
+  });
+
+  it("ends cooldown exactly after 90 days", () => {
+    const text = formatDonorProfile(
+      user({
+        lastDonatedAt: new Date("2026-01-01T00:00:00Z"),
+      }),
+      Date.parse("2026-04-01T00:00:00Z"),
+    );
+    expect(text).toContain("Cooldown: None");
+    expect(text).toContain("Days remaining: 0");
+  });
+
+  it("does not show the sentinel as a donation date", () => {
+    const text = formatDonorProfile(user());
+    expect(text).toContain("Last donation: Not recorded");
+    expect(text).toContain("Days remaining: 0");
+    expect(text).not.toContain("0000");
+  });
+
+  it.each(["Donor", "Temporary", "Reserved", "Non-Donor"] as const)(
+    "checks current status before returning a profile: %s",
+    async (status) => {
+      const db = createDbMock();
+      db.queueSelect([]);
+      db.queueSelect([]);
+      db.queueSelect([user({ status })]);
+      const { bot, calls } = testBot(db);
+      await bot.handleUpdate(textUpdate(10, "My Donor Profile"));
+      const texts = sentTexts(calls).join("\n");
+      expect(texts.includes("Name: Aisha")).toBe(status !== "Non-Donor");
+      expect(texts.includes("Cooldown: None")).toBe(status !== "Non-Donor");
+      expect(texts.includes("available only to registered donors")).toBe(status === "Non-Donor");
+      expect(texts.includes("Phone:")).toBe(status !== "Non-Donor");
+    },
+  );
 });

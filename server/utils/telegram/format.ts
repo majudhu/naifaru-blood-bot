@@ -1,3 +1,4 @@
+import { DATE_NIL, DAY_MS } from "../../../shared/utils/const";
 import type { BloodRequest, User } from "../../schema";
 
 export const TELEGRAM_MESSAGE_LENGTH_LIMIT = 4096;
@@ -124,5 +125,30 @@ export function formatRequesterContact(requester: User) {
     "<b>Thanks for helping.</b>",
     `Requester: ${escapeHtml(requester.name)}`,
     `Phone: ${formatPhoneLink(requester.phone ?? null)}`,
+  ].join("\n");
+}
+
+export function formatDonorProfile(user: User, now = Date.now()) {
+  const hasDonation = user.lastDonatedAt.getTime() !== new Date(DATE_NIL).getTime();
+  const eligibleAt = user.lastDonatedAt.getTime() + 90 * DAY_MS;
+  const days = hasDonation ? Math.max(0, Math.ceil((eligibleAt - now) / DAY_MS)) : 0;
+  const date = (value: Date) =>
+    value.toLocaleDateString("en-GB", {
+      timeZone: "Indian/Maldives",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  return [
+    "<b>My Donor Profile</b>",
+    `Name: ${escapeHtml(user.name)}`,
+    `Blood group: ${escapeHtml(user.bloodType || "Not recorded")}`,
+    `Phone: ${formatPhoneLink(user.phone)}`,
+    `Island: ${escapeHtml(user.island || "Not recorded")}`,
+    `Status: ${escapeHtml(user.status)}`,
+    `Last donation: ${hasDonation ? date(user.lastDonatedAt) : "Not recorded"}`,
+    `Cooldown: ${days > 0 ? "Active" : "None"}`,
+    `Days remaining: ${days}`,
+    `Next eligible date: ${hasDonation ? date(new Date(eligibleAt)) : "No recorded cooldown"}`,
   ].join("\n");
 }

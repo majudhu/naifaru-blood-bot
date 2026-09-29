@@ -14,6 +14,7 @@ import { enqueueDonorNotifications } from "./notifications";
 import { createD1SessionStorage, markTelegramUpdateProcessed } from "./storage";
 import {
   formatChannelRequest,
+  formatDonorProfile,
   formatDonorContact,
   formatReadyDonorMessages,
   formatRequesterContact,
@@ -166,7 +167,26 @@ export function createTelegramBot(input: {
       return;
     }
 
-    await ctx.reply("Welcome back.", { reply_markup: mainMenuKeyboard() });
+    await ctx.reply("Welcome back.", { reply_markup: mainMenuKeyboard(user.status) });
+  });
+
+  bot.hears("My Donor Profile", async (ctx) => {
+    if (ctx.chat.type !== "private") {
+      await ctx.reply("Please open a private chat with me to view your donor profile.");
+      return;
+    }
+    const user = await registeredUser(ctx, input.db);
+    if (!user) return;
+    if (user.status === "Non-Donor") {
+      await ctx.reply("Donor profiles are available only to registered donors.", {
+        reply_markup: mainMenuKeyboard(user.status),
+      });
+      return;
+    }
+    await ctx.reply(formatDonorProfile(user), {
+      ...html,
+      reply_markup: mainMenuKeyboard(user.status),
+    });
   });
 
   bot.command("request", (ctx) => startRequest(ctx, input.db));
@@ -182,9 +202,9 @@ export function createTelegramBot(input: {
       return;
     }
 
-    await upsertTelegramContactUser(input.db, contact, from);
+    const user = await upsertTelegramContactUser(input.db, contact, from);
     await ctx.reply("Registration saved.", {
-      reply_markup: mainMenuKeyboard(),
+      reply_markup: mainMenuKeyboard(user.status),
     });
 
     if (ctx.session.pendingHelpRequestId) {
@@ -251,7 +271,7 @@ export function createTelegramBot(input: {
       'Request sent to channel <a href="https://t.me/naifarudonors">@naifarudonors</a>',
       {
         ...html,
-        reply_markup: mainMenuKeyboard(),
+        reply_markup: mainMenuKeyboard(user.status),
       },
     );
 
