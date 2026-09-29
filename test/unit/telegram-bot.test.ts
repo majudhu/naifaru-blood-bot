@@ -20,7 +20,7 @@ function user(overrides: Partial<User> = {}): User {
     dob: new Date("1990-01-01"),
     id: 7,
     island: "Naifaru",
-    isAvailable: true,
+    status: "Donor",
     lastDonatedAt: new Date(DATE_NIL),
     name: "Aisha",
     nid: "A123456",

@@ -1,3 +1,4 @@
+export const userStatusValues = ["Donor", "Temporary", "Reserved", "Non-Donor"] as const;
 export const bloodTypeValues = ["", "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] as const;
 export const requestStatusValues = ["open", "fulfilled", "cancelled"] as const;
 export const donorResponseStatusValues = ["contacted", "accepted", "declined", "donated"] as const;

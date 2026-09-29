@@ -112,7 +112,7 @@ export async function upsertTelegramContactUser(
     bloodType: "",
     dob: new Date(DATE_NIL),
     island: "",
-    isAvailable: false,
+    status: "Non-Donor",
     lastDonatedAt: new Date(DATE_NIL),
     name,
     notes: "",
@@ -162,7 +162,7 @@ export async function findReadyDonors(
     .where(
       and(
         eq(users.bloodType, input.bloodType),
-        eq(users.isAvailable, true),
+        eq(users.status, "Donor"),
         lte(users.lastDonatedAt, sql`unixepoch('now', '-90 days')`),
         ne(users.id, input.requesterId),
         isNotNull(users.phone),

@@ -1,19 +1,21 @@
-import { and, count, eq, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, count, eq, ne, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
 import { PER_PAGE } from "~~/shared/utils/const";
 
-type Status = "ready" | "cooldown" | "donors" | "non-donors";
+type Status = "ready" | "cooldown" | "donors" | "non-donors" | "Temporary" | "Reserved";
 
 const STATUS_FILTER: Record<Status, SQL<unknown> | undefined> = {
   ready: and(
-    eq(schema.users.isAvailable, true),
+    ne(schema.users.status, "Non-Donor"),
     lte(schema.users.lastDonatedAt, sql`unixepoch('now', '-90 days')`),
   ),
   cooldown: and(
-    eq(schema.users.isAvailable, true),
+    ne(schema.users.status, "Non-Donor"),
     gt(schema.users.lastDonatedAt, sql`unixepoch('now', '-90 days')`),
   ),
-  donors: and(eq(schema.users.isAvailable, true)),
-  "non-donors": and(eq(schema.users.isAvailable, false)),
+  Temporary: eq(schema.users.status, "Temporary"),
+  Reserved: eq(schema.users.status, "Reserved"),
+  donors: and(ne(schema.users.status, "Non-Donor")),
+  "non-donors": and(eq(schema.users.status, "Non-Donor")),
 };
 
 export default defineEventHandler(async (event) => {
@@ -58,7 +60,7 @@ export default defineEventHandler(async (event) => {
         address: schema.users.address,
         bloodType: schema.users.bloodType,
         lastDonatedAt: schema.users.lastDonatedAt,
-        isAvailable: schema.users.isAvailable,
+        status: schema.users.status,
       })
       .from(schema.users)
       .limit(PER_PAGE)

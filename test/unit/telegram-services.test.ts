@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppDb } from "../../server/utils/telegram/types";
@@ -32,7 +34,7 @@ function user(overrides: Partial<User> = {}): User {
     dob: new Date("1990-01-01"),
     id: 7,
     island: "Naifaru",
-    isAvailable: true,
+    status: "Donor",
     lastDonatedAt: new Date(DATE_NIL),
     name: "Aisha",
     nid: "A123456",
@@ -109,7 +111,7 @@ describe("Telegram contact onboarding", () => {
       bloodType: "",
       dob: new Date(DATE_NIL),
       id: 12,
-      isAvailable: false,
+      status: "Non-Donor",
       lastDonatedAt: new Date(DATE_NIL),
       name: "Ali Rasheed",
       phone: "7770000",
@@ -132,7 +134,7 @@ describe("Telegram contact onboarding", () => {
         bloodType: "",
         dob: new Date(DATE_NIL),
         lastDonatedAt: new Date(DATE_NIL),
-        isAvailable: false,
+        status: "Non-Donor",
         name: "Ali Rasheed",
         phone: "7770000",
         sex: "",
@@ -296,6 +298,11 @@ describe("Telegram blood requests", () => {
     ).resolves.toEqual(readyDonors);
 
     expect(select.where).toHaveBeenCalledTimes(1);
+    const query = new SQLiteSyncDialect().sqlToQuery(select.where.mock.calls[0]![0] as SQL);
+    expect(query.sql).toContain('"users"."status" = ?');
+    expect(query.params).toContain("Donor");
+    expect(query.params).not.toContain("Temporary");
+    expect(query.params).not.toContain("Reserved");
     expect(select.orderBy).toHaveBeenCalledTimes(1);
   });
 });
@@ -309,7 +316,7 @@ describe("Telegram donor matching", () => {
       dob: new Date(DATE_NIL),
       id: 10,
       island: "",
-      isAvailable: false,
+      status: "Non-Donor",
       lastDonatedAt: new Date("2099-01-01"),
       nid: null,
       sex: "",

@@ -1,8 +1,8 @@
 {
-  "id": "bbaf40c5-7d9b-4487-a62a-0a8fb88a91be",
-  "prevId": "08b1e8ac-b1da-4c58-a356-7d801dd731cc",
   "version": "6",
   "dialect": "sqlite",
+  "id": "3652c8b9-196e-4f3e-89e2-b24454d4a0c2",
+  "prevId": "bbaf40c5-7d9b-4487-a62a-0a8fb88a91be",
   "tables": {
     "blacklist": {
       "name": "blacklist",
@@ -182,15 +182,15 @@
         "blood_requests_user_id_users_id_fk": {
           "name": "blood_requests_user_id_users_id_fk",
           "tableFrom": "blood_requests",
+          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -298,15 +298,15 @@
         "donations_donor_id_users_id_fk": {
           "name": "donations_donor_id_users_id_fk",
           "tableFrom": "donations",
+          "tableTo": "users",
           "columnsFrom": [
             "donor_id"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -413,28 +413,28 @@
         "donor_responses_request_id_blood_requests_id_fk": {
           "name": "donor_responses_request_id_blood_requests_id_fk",
           "tableFrom": "donor_responses",
+          "tableTo": "blood_requests",
           "columnsFrom": [
             "request_id"
           ],
-          "tableTo": "blood_requests",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "donor_responses_donor_id_users_id_fk": {
           "name": "donor_responses_donor_id_users_id_fk",
           "tableFrom": "donor_responses",
+          "tableTo": "users",
           "columnsFrom": [
             "donor_id"
           ],
-          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -635,13 +635,13 @@
           "autoincrement": false,
           "default": "''"
         },
-        "is_available": {
-          "name": "is_available",
-          "type": "integer",
+        "status": {
+          "name": "status",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": false
+          "default": "'Non-Donor'"
         },
         "last_donated_at": {
           "name": "last_donated_at",
@@ -712,10 +712,10 @@
           ],
           "isUnique": false
         },
-        "users_is_available_idx": {
-          "name": "users_is_available_idx",
+        "users_status_idx": {
+          "name": "users_status_idx",
           "columns": [
-            "is_available"
+            "status"
           ],
           "isUnique": false
         },
@@ -736,9 +736,9 @@
   "views": {},
   "enums": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
+    "tables": {},
+    "columns": {}
   },
   "internal": {
     "indexes": {}

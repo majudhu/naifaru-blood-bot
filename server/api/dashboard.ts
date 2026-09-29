@@ -1,4 +1,4 @@
-import { and, count, eq, gte, lte, sql } from "drizzle-orm";
+import { and, count, ne, gte, lte, sql } from "drizzle-orm";
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event);
@@ -6,13 +6,13 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event);
 
   const [[donors], [newDonors], [ready], groups] = await Promise.all([
-    db.select({ count: count() }).from(schema.users).where(eq(schema.users.isAvailable, true)),
+    db.select({ count: count() }).from(schema.users).where(ne(schema.users.status, "Non-Donor")),
     db
       .select({ count: count() })
       .from(schema.users)
       .where(
         and(
-          eq(schema.users.isAvailable, true),
+          ne(schema.users.status, "Non-Donor"),
           gte(schema.users.createdAt, sql`unixepoch('now', '-30 days')`),
         ),
       ),
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
       .from(schema.users)
       .where(
         and(
-          eq(schema.users.isAvailable, true),
+          ne(schema.users.status, "Non-Donor"),
           lte(schema.users.lastDonatedAt, sql`unixepoch('now', '-90 days')`),
         ),
       ),
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
         total: count(),
       })
       .from(schema.users)
-      .where(and(eq(schema.users.isAvailable, true)))
+      .where(and(ne(schema.users.status, "Non-Donor")))
       .groupBy(schema.users.bloodType),
   ]);
 

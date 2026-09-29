@@ -6,6 +6,7 @@ import {
   donorResponseStatusValues,
   requestStatusValues,
   staffRoleValues,
+  userStatusValues,
 } from "../shared/utils/const";
 
 const dateNilDefault = () => sql.raw(String(new Date(DATE_NIL).getTime() / 1000));
@@ -33,7 +34,7 @@ export const users = sqliteTable(
     dob: integer("dob", { mode: "timestamp" }).notNull().default(dateNilDefault()),
     address: text("address").notNull().default(""),
     island: text("island").notNull().default(""),
-    isAvailable: integer("is_available", { mode: "boolean" }).notNull().default(false),
+    status: text("status", { enum: userStatusValues }).notNull().default("Non-Donor"),
     lastDonatedAt: integer("last_donated_at", { mode: "timestamp" })
       .notNull()
       .default(dateNilDefault()),
@@ -42,7 +43,7 @@ export const users = sqliteTable(
   },
   (table) => [
     index("users_blood_type_idx").on(table.bloodType),
-    index("users_is_available_idx").on(table.isAvailable),
+    index("users_status_idx").on(table.status),
     index("users_last_donated_at_idx").on(table.lastDonatedAt),
   ],
 );

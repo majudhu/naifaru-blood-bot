@@ -4,7 +4,7 @@ import { refDebounced } from "@vueuse/core";
 import type { InternalApi } from "nitropack";
 import { FetchError } from "ofetch";
 import type { User as DbUser } from "~~/server/schema";
-import { PER_PAGE } from "~~/shared/utils/const";
+import { PER_PAGE, userStatusValues } from "~~/shared/utils/const";
 
 type UserRow = NonNullable<typeof data.value>["data"][number];
 
@@ -19,6 +19,8 @@ const donorStatuses = [
   { label: "Ready now", value: "ready" },
   { label: "Cooldown", value: "cooldown" },
   { label: "All donors", value: "donors" },
+  { label: "Temporary", value: "Temporary" },
+  { label: "Reserved", value: "Reserved" },
   { label: "Non-donors", value: "non-donors" },
   { label: "All users", value: "all" },
 ];
@@ -62,7 +64,7 @@ const BLANK_USER = {
   dob: "",
   address: "",
   island: "",
-  isAvailable: false,
+  status: "Non-Donor" as DbUser["status"],
   lastDonatedAt: "",
   notes: "",
 };
@@ -89,11 +91,15 @@ const columns: TableColumn<UserRow>[] = [
     meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
   },
   {
-    accessorKey: "isAvailable",
+    accessorKey: "status",
     header: "Status",
     cell({ row }) {
       const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / DAY_MS);
-      return row.original.isAvailable ? (days < 1 ? "Available" : `⏳ ${days} days`) : "-";
+      return row.original.status === "Donor"
+        ? days < 1
+          ? "Donor"
+          : `Donor · ⏳ ${days} days`
+        : row.original.status;
     },
   },
 ];
@@ -121,7 +127,7 @@ async function save(event: FormSubmitEvent<typeof edit>) {
     if (isNew.value) await $fetch("/api/users", { method: "POST", body: event.data });
     else await $fetch(`/api/users/${editDetails.value.id}`, { method: "PUT", body: event.data });
 
-    donorStatus.value = event.data.isAvailable ? "donors" : "non-donors";
+    donorStatus.value = event.data.status === "Non-Donor" ? "non-donors" : "donors";
 
     if (isNew.value)
       refresh().then(() => {
@@ -299,12 +305,14 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
               Today
             </UButton>
 
-            <UCheckbox
-              v-model="edit.isAvailable"
-              label="Donor"
-              class="pb-2"
-              :disabled="isNurse || isReadOnly"
-            />
+            <UFormField label="Status" name="status" class="flex-1">
+              <USelect
+                v-model="edit.status"
+                :items="userStatusValues"
+                class="w-full"
+                :disabled="isNurse || isReadOnly"
+              />
+            </UFormField>
           </div>
 
           <UFormField label="Phone">
@@ -312,11 +320,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
           </UFormField>
 
           <UFormField label="NID / PP No.">
-            <UInput
-              v-model="edit.nid"
-              class="w-full"
-              :disabled="isNurse || isReadOnly"
-            />
+            <UInput v-model="edit.nid" class="w-full" :disabled="isNurse || isReadOnly" />
           </UFormField>
 
           <small class="flex flex-wrap md:grid-cols-2 items-center">

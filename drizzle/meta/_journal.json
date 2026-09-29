@@ -29,6 +29,13 @@
       "when": 1787729753736,
       "tag": "0003_donations-simplify",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790666334881,
+      "tag": "0004_user-status",
+      "breakpoints": true
     }
   ]
 }

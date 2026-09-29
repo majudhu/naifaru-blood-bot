@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { DATE_NIL } from "../../shared/utils/const";
+import { DATE_NIL, userStatusValues } from "../../shared/utils/const";
 
 const dateParser = v.pipe(
   v.optional(v.string(), ""),
@@ -41,7 +41,7 @@ export const CreateuserParser = v.parser(
     dob: dateParser,
     address: v.string(),
     island: v.string(),
-    isAvailable: v.optional(v.boolean(), false),
+    status: v.optional(v.picklist(userStatusValues), "Non-Donor"),
     lastDonatedAt: dateParser,
     notes: v.optional(v.string(), ""),
   }),

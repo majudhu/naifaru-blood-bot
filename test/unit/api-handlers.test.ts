@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DATE_NIL, PER_PAGE } from "../../shared/utils/const";
+import type { SQL } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import {
   autoImportMocks,
@@ -247,12 +248,52 @@ describe("staff API", () => {
 });
 
 describe("users API", () => {
+  it.each(["Donor", "Temporary", "Reserved", "Non-Donor"])(
+    "accepts user status %s",
+    async (status) => {
+      const { CreateuserParser } = await import("../../server/api/users.post");
+      expect(CreateuserParser({ ...validUserBody, status }).status).toBe(status);
+    },
+  );
+
+  it.each(["Available", "", true, null])("rejects invalid user status %s", async (status) => {
+    const { CreateuserParser } = await import("../../server/api/users.post");
+    expect(() => CreateuserParser({ ...validUserBody, status })).toThrow("Invalid type");
+  });
+
+  it.each([
+    ["non-donors", "Non-Donor"],
+    ["Temporary", "Temporary"],
+    ["Reserved", "Reserved"],
+  ])("filters users by %s", async (filter, status) => {
+    const { default: handler } = await import("../../server/api/users.get");
+    const db = createDbMock();
+    const list = db.queueSelect([]);
+    db.queueSelect([{ count: 0 }]);
+    await handler(createEvent({ db, query: { status: filter } }));
+    const query = new SQLiteSyncDialect().sqlToQuery(list.where.mock.calls[0]![0] as SQL);
+    expect(query.sql).toContain('"users"."status" = ?');
+    expect(query.params).toEqual([status]);
+  });
+
+  it.each(["donors", "ready", "cooldown"])(
+    "includes every donor status in the web %s filter",
+    async (status) => {
+      const { default: handler } = await import("../../server/api/users.get");
+      const db = createDbMock();
+      const list = db.queueSelect([]);
+      db.queueSelect([{ count: 0 }]);
+      await handler(createEvent({ db, query: { status } }));
+      const query = new SQLiteSyncDialect().sqlToQuery(list.where.mock.calls[0]![0] as SQL);
+      expect(query.sql).toContain('"users"."status" <> ?');
+      expect(query.params).toEqual(["Non-Donor"]);
+    },
+  );
+
   it("returns paginated users with the total", async () => {
     const { default: handler } = await import("../../server/api/users.get");
     const db = createDbMock();
-    const listQuery = db.queueSelect([
-      { bloodType: "A+", id: 1, isAvailable: true, name: "Aisha" },
-    ]);
+    const listQuery = db.queueSelect([{ bloodType: "A+", id: 1, status: "Donor", name: "Aisha" }]);
     db.queueSelect([{ count: 41 }]);
     db.queueSelect([{ count: 30 }]);
     db.queueSelect([{ count: 3 }]);
@@ -262,7 +303,7 @@ describe("users API", () => {
     });
 
     await expect(handler(event)).resolves.toEqual({
-      data: [{ bloodType: "A+", id: 1, isAvailable: true, name: "Aisha" }],
+      data: [{ bloodType: "A+", id: 1, status: "Donor", name: "Aisha" }],
       total: 41,
     });
 
@@ -284,7 +325,7 @@ describe("users API", () => {
     expect(insert.values).toHaveBeenCalledWith(
       expect.objectContaining({
         dob: new Date("1990-03-04"),
-        isAvailable: false,
+        status: "Non-Donor",
         nid: null,
         notes: "",
         phone: null,
@@ -557,10 +598,12 @@ describe("dashboard API", () => {
     const { default: handler } = await import("../../server/api/dashboard");
     const groups = [{ ready: 4, total: 8, type: "A+" }];
     const db = createDbMock();
-    db.queueSelect([{ count: 30 }]);
-    db.queueSelect([{ count: 5 }]);
-    db.queueSelect([{ count: 18 }]);
-    db.queueSelect(groups);
+    const queries = [
+      db.queueSelect([{ count: 30 }]),
+      db.queueSelect([{ count: 5 }]),
+      db.queueSelect([{ count: 18 }]),
+      db.queueSelect(groups),
+    ];
 
     await expect(handler(createEvent({ db }))).resolves.toEqual({
       donors: 30,
@@ -568,5 +611,10 @@ describe("dashboard API", () => {
       new: 5,
       ready: 18,
     });
+    for (const select of queries) {
+      const query = new SQLiteSyncDialect().sqlToQuery(select.where.mock.calls[0]![0] as SQL);
+      expect(query.sql).toContain('"users"."status" <> ?');
+      expect(query.params).toEqual(["Non-Donor"]);
+    }
   });
 });

@@ -8,6 +8,7 @@ export default defineConfig({
       {
         resolve: {
           alias: {
+            "~~": fileURLToPath(new URL(".", import.meta.url)),
             h3: fileURLToPath(new URL("./test/unit/h3-stub.ts", import.meta.url)),
           },
         },
