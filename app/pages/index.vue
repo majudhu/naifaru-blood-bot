@@ -71,7 +71,7 @@ const BLANK_USER = {
   dob: "",
   address: "",
   island: "",
-  status: "Non-Donor" as DbUser["status"],
+  status: "Donor" as DbUser["status"],
   lastDonatedAt: "",
   notes: "",
 };
