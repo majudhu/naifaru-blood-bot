@@ -56,8 +56,30 @@ async function startRequest(ctx: TelegramContext, db: AppDb) {
 
   ctx.session.pendingBloodRequest = undefined;
 
+  await ctx.reply("Choose an option below.", {
+    reply_markup: mainMenuKeyboard(user.status),
+  });
   await ctx.reply("Select the blood group you need.", {
-    reply_markup: bloodRequestKeyboard(),
+    reply_markup: bloodRequestKeyboard(user.status),
+  });
+}
+
+async function showDonorProfile(ctx: TelegramContext, db: AppDb) {
+  if (ctx.chat?.type !== "private") {
+    await ctx.reply("Please open a private chat with me to view your donor profile.");
+    return;
+  }
+  const user = await registeredUser(ctx, db);
+  if (!user) return;
+  if (user.status === "Non-Donor") {
+    await ctx.reply("Donor profiles are available only to registered donors.", {
+      reply_markup: mainMenuKeyboard(user.status),
+    });
+    return;
+  }
+  await ctx.reply(formatDonorProfile(user), {
+    ...html,
+    reply_markup: mainMenuKeyboard(user.status),
   });
 }
 
@@ -170,23 +192,10 @@ export function createTelegramBot(input: {
     await ctx.reply("Welcome back.", { reply_markup: mainMenuKeyboard(user.status) });
   });
 
-  bot.hears("My Donor Profile", async (ctx) => {
-    if (ctx.chat.type !== "private") {
-      await ctx.reply("Please open a private chat with me to view your donor profile.");
-      return;
-    }
-    const user = await registeredUser(ctx, input.db);
-    if (!user) return;
-    if (user.status === "Non-Donor") {
-      await ctx.reply("Donor profiles are available only to registered donors.", {
-        reply_markup: mainMenuKeyboard(user.status),
-      });
-      return;
-    }
-    await ctx.reply(formatDonorProfile(user), {
-      ...html,
-      reply_markup: mainMenuKeyboard(user.status),
-    });
+  bot.hears("My Donor Profile", (ctx) => showDonorProfile(ctx, input.db));
+  bot.callbackQuery("donor:profile", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showDonorProfile(ctx, input.db);
   });
 
   bot.command("request", (ctx) => startRequest(ctx, input.db));
@@ -216,7 +225,7 @@ export function createTelegramBot(input: {
     if (ctx.session.pendingBloodRequest) {
       ctx.session.pendingBloodRequest = undefined;
       await ctx.reply("Select the blood group you need.", {
-        reply_markup: bloodRequestKeyboard(),
+        reply_markup: bloodRequestKeyboard(user.status),
       });
     }
   });
@@ -288,6 +297,7 @@ export function createTelegramBot(input: {
   });
 
   bot.on("message:text", (ctx) => startRequest(ctx, input.db));
+  bot.chatType("private").on("message", (ctx) => startRequest(ctx, input.db));
 
   bot.on("callback_query:data", async (ctx) => {
     await ctx.answerCallbackQuery({

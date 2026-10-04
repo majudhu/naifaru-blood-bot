@@ -20,12 +20,13 @@ export function contactKeyboard() {
     .placeholder("Share your phone number");
 }
 
-export function bloodRequestKeyboard() {
+export function bloodRequestKeyboard(status: User["status"]) {
   const keyboard = new InlineKeyboard();
   bloodTypes.forEach((bloodType, index) => {
     if (index > 0 && index % 2 === 0) keyboard.row();
     keyboard.text(bloodType, `request:type:${bloodType}`);
   });
+  if (status !== "Non-Donor") keyboard.row().text("My Donor Profile", "donor:profile");
   return keyboard;
 }
 
