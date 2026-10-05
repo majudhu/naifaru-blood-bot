@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DATE_NIL, PER_PAGE } from "../../shared/utils/const";
 import type { SQL } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import * as schema from "../../server/schema";
 import {
   autoImportMocks,
   createDbMock,
@@ -480,6 +481,63 @@ describe("donations API", () => {
     const event = createEvent({ session: { user: { id: 3, role: "nurse" } } });
 
     await expectRejectsWithStatus(handler(event), 403);
+  });
+
+  it("lets admins delete only the selected donation entry", async () => {
+    const { default: handler } = await import("../../server/api/donations/[id].delete");
+    const db = createDbMock();
+    const deletion = db.queueDelete({ meta: { changes: 1 } });
+
+    await expect(handler(createEvent({ db, params: { id: "9" } }))).resolves.toBeNull();
+
+    expect(db.delete).toHaveBeenCalledWith(schema.donations);
+    const query = new SQLiteSyncDialect().sqlToQuery(deletion.where.mock.calls[0]![0] as SQL);
+    expect(query).toMatchObject({ sql: '"donations"."id" = ?', params: [9] });
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it.each(["nurse", "lab"])("rejects donation deletion by %s staff", async (role) => {
+    const { default: handler } = await import("../../server/api/donations/[id].delete");
+    const event = createEvent({
+      params: { id: "9" },
+      session: { user: { id: 3, role } },
+    });
+
+    await expectRejectsWithStatus(handler(event), 403);
+
+    expect(event.db.delete).not.toHaveBeenCalled();
+  });
+
+  it("requires a session before deleting a donation", async () => {
+    const { default: handler } = await import("../../server/api/donations/[id].delete");
+    autoImportMocks.requireUserSession.mockRejectedValue(
+      Object.assign(new Error("Unauthorized"), { statusCode: 401 }),
+    );
+    const event = createEvent({ params: { id: "9" } });
+
+    await expectRejectsWithStatus(handler(event), 401);
+
+    expect(event.db.delete).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "", "invalid", "0", "-1", "1.5", "Infinity", "9007199254740992"])(
+    "rejects invalid donation ID %s before deleting",
+    async (id) => {
+      const { default: handler } = await import("../../server/api/donations/[id].delete");
+      const event = createEvent({ params: { id } });
+
+      await expectRejectsWithStatus(handler(event), 400);
+
+      expect(event.db.delete).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reports a missing or already deleted donation", async () => {
+    const { default: handler } = await import("../../server/api/donations/[id].delete");
+    const db = createDbMock();
+    db.queueDelete({ meta: { changes: 0 } });
+
+    await expectRejectsWithStatus(handler(createEvent({ db, params: { id: "404" } })), 404);
   });
 });
 
