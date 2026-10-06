@@ -430,7 +430,7 @@ describe("Donor profiles", () => {
     ]);
   });
 
-  it("shows remaining days and the end date, escaping profile values", () => {
+  it("shows the donation date and days until eligible, escaping profile values", () => {
     const text = formatDonorProfile(
       user({
         name: "<Aisha>",
@@ -439,26 +439,36 @@ describe("Donor profiles", () => {
       Date.parse("2026-03-31T12:00:00Z"),
     );
     expect(text).toContain("Name: &lt;Aisha&gt;");
-    expect(text).toContain("Cooldown: Active");
-    expect(text).toContain("Days remaining: 1");
-    expect(text).toContain("Next eligible date: 1 April 2026");
+    expect(text).toContain("Last donation: 89 days ago • 1 January 2026");
+    expect(text).toContain("Can donate after: 1 days • 1 April 2026");
   });
 
-  it("ends cooldown exactly after 90 days", () => {
+  it("marks the donor eligible exactly after 90 days", () => {
     const text = formatDonorProfile(
       user({
         lastDonatedAt: new Date("2026-01-01T00:00:00Z"),
       }),
       Date.parse("2026-04-01T00:00:00Z"),
     );
-    expect(text).toContain("Cooldown: None");
-    expect(text).toContain("Days remaining: 0");
+    expect(text).toContain("Last donation: 90 days ago • 1 January 2026");
+    expect(text).toContain("Can donate since: 1 April 2026 • 0 days ago");
+  });
+
+  it("reports the real days since a donation once the cooldown has passed", () => {
+    const text = formatDonorProfile(
+      user({
+        lastDonatedAt: new Date("2025-12-25T00:00:00Z"),
+      }),
+      Date.parse("2026-03-31T12:00:00Z"),
+    );
+    expect(text).toContain("Last donation: 96 days ago • 25 December 2025");
+    expect(text).toContain("Can donate since: 25 March 2026 • 6 days ago");
   });
 
   it("does not show the sentinel as a donation date", () => {
     const text = formatDonorProfile(user());
     expect(text).toContain("Last donation: Not recorded");
-    expect(text).toContain("Days remaining: 0");
+    expect(text).not.toContain("Can donate");
     expect(text).not.toContain("0000");
   });
 
@@ -473,7 +483,7 @@ describe("Donor profiles", () => {
       await bot.handleUpdate(textUpdate(10, "My Donor Profile"));
       const texts = sentTexts(calls).join("\n");
       expect(texts.includes("Name: Aisha")).toBe(status !== "Non-Donor");
-      expect(texts.includes("Cooldown: None")).toBe(status !== "Non-Donor");
+      expect(texts.includes("Last donation: Not recorded")).toBe(status !== "Non-Donor");
       expect(texts.includes("available only to registered donors")).toBe(status === "Non-Donor");
       expect(texts.includes("Phone:")).toBe(status !== "Non-Donor");
     },

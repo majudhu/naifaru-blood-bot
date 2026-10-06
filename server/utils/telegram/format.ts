@@ -131,7 +131,7 @@ export function formatRequesterContact(requester: User) {
 export function formatDonorProfile(user: User, now = Date.now()) {
   const hasDonation = user.lastDonatedAt.getTime() !== new Date(DATE_NIL).getTime();
   const eligibleAt = user.lastDonatedAt.getTime() + 90 * DAY_MS;
-  const days = hasDonation ? Math.max(0, Math.ceil((eligibleAt - now) / DAY_MS)) : 0;
+  const days = hasDonation ?  Math.ceil((eligibleAt - now) / DAY_MS) : 0;
   const date = (value: Date) =>
     value.toLocaleDateString("en-GB", {
       timeZone: "Indian/Maldives",
@@ -140,15 +140,14 @@ export function formatDonorProfile(user: User, now = Date.now()) {
       year: "numeric",
     });
   return [
-    "<b>My Donor Profile</b>",
     `Name: ${escapeHtml(user.name)}`,
-    `Blood group: ${escapeHtml(user.bloodType || "Not recorded")}`,
+    `Blood group: ${escapeHtml(user.bloodType || "-")}`,
     `Phone: ${formatPhoneLink(user.phone)}`,
-    `Island: ${escapeHtml(user.island || "Not recorded")}`,
+    // `Island: ${escapeHtml(user.island || "Not recorded")}`,
     `Status: ${escapeHtml(user.status)}`,
-    `Last donation: ${hasDonation ? date(user.lastDonatedAt) : "Not recorded"}`,
-    `Cooldown: ${days > 0 ? "Active" : "None"}`,
-    `Days remaining: ${days}`,
-    `Next eligible date: ${hasDonation ? date(new Date(eligibleAt)) : "No recorded cooldown"}`,
-  ].join("\n");
+    `Last donation: ${hasDonation ? `${90 - days} days ago • ${date(user.lastDonatedAt)}` : "Not recorded"}`,
+    hasDonation ? (
+      days > 0 ? `Can donate after: ${days} days • ${date(new Date(eligibleAt))}` : `Can donate since: ${date(new Date(eligibleAt))} • ${-days} days ago`
+    ) : undefined,
+  ].join("\n").trim();
 }
