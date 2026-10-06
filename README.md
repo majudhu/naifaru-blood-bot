@@ -37,6 +37,8 @@ For Cloudflare production, store secrets with `wrangler secret put` instead of c
 
 ### Donor Registration
 
+Plain `/start` opens the blood-group picker for requesting blood. New users are asked to share their own phone contact first, then see the picker immediately after sharing it. Existing registration sessions and help deep links retain their current flow.
+
 Share [the registration link](https://t.me/NaifaruBloodBot?start=register) or print the [registration QR code](public/donor-registration-qr.svg) ([PNG](public/donor-registration-qr.png)). After deployment, this link starts or resumes registration. Telegram may require the user to tap **Start** after scanning, especially when opening the bot for the first time.
 
 Add the bot to the private admin group and configure its numeric chat ID with `pnpm wrangler secret put TELEGRAM_ADMIN_GROUP_ID` before deploying. Use the same setting in `.dev.vars` locally. Run `pnpm cf-typegen` after changing Worker configuration.

@@ -496,6 +496,7 @@ describe("Telegram message fallback", () => {
   );
 
   it.each([
+    { name: "/start", update: textUpdate(1, "/start") },
     { name: "unknown commands", update: textUpdate(1, "/unknown") },
     { name: "stickers", update: stickerUpdate(1) },
   ])("shows the donor menu for $name in private chats", async ({ update }) => {
@@ -564,9 +565,14 @@ describe("Telegram message fallback", () => {
     });
   });
 
-  it.each(["Donor", "Non-Donor"] as const)(
-    "continues to blood-group selection after sharing contact registers a %s",
-    async (status) => {
+  it.each([
+    { status: "Donor", command: "I need blood" },
+    { status: "Non-Donor", command: "I need blood" },
+    { status: "Donor", command: "/start" },
+    { status: "Non-Donor", command: "/start" },
+  ] as const)(
+    "continues to blood-group selection after $command and sharing contact registers a $status",
+    async ({ status, command }) => {
       const db = createDbMock();
       db.queueSelect([]);
       db.queueSelect([]);
@@ -584,7 +590,7 @@ describe("Telegram message fallback", () => {
       if (status === "Donor") db.queueUpdate({ meta: { changes: 1 } });
       const { bot, calls } = testBot(db);
 
-      await bot.handleUpdate(textUpdate(3, "I need blood"));
+      await bot.handleUpdate(textUpdate(3, command));
       await bot.handleUpdate(contactUpdate(4));
 
       expect(sentTexts(calls)).toEqual([

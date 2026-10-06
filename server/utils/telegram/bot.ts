@@ -287,13 +287,7 @@ export function createTelegramBot(input: {
       return;
     }
 
-    const user = ctx.from ? await findUserByTelegramId(input.db, ctx.from.id) : undefined;
-    if (!user) {
-      await promptForContact(ctx);
-      return;
-    }
-
-    await ctx.reply("Welcome back.", { reply_markup: mainMenuKeyboard(user.status) });
+    await startRequest(ctx, input.db);
   });
 
   bot.command("register", (ctx) => startRegistration(ctx, input.db));
