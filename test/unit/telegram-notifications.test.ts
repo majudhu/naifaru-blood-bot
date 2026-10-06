@@ -152,7 +152,9 @@ describe("Registration notification queue", () => {
 
   it("DMs the web admin using user 17's linked Telegram ID", async () => {
     const db = createDbMock();
-    db.queueSelect([{ id: 7, name: "<Aisha>", phone: "7771234", bloodType: "O+" }]);
+    db.queueSelect([
+      { id: 7, name: "<Aisha>", phone: "7771234", bloodType: "O+", telegramUserId: 12345 },
+    ]);
     db.queueSelect([{ telegramUserId: 987654321 }]);
     const { api, calls } = interceptedApi();
     await expect(
@@ -167,6 +169,8 @@ describe("Registration notification queue", () => {
     expect(calls[0]?.text).toContain("&lt;Aisha&gt;");
     expect(calls[0]?.text).toContain("7771234");
     expect(calls[0]?.text).toContain("Pending Review");
+    expect(calls[0]?.text).toContain('href="tg://user?id=12345"');
+    expect(calls[0]?.text).toContain('href="https://naifaru-blood-bot.majudhu.workers.dev"');
   });
 
   it.each([{ recipient: [] }, { recipient: [{ telegramUserId: null }] }])(
@@ -189,7 +193,9 @@ describe("Registration notification queue", () => {
 
   it("sends escaped applicant details to the admin group", async () => {
     const db = createDbMock();
-    db.queueSelect([{ id: 7, name: "<Aisha>", phone: "7771234", bloodType: "O+" }]);
+    db.queueSelect([
+      { id: 7, name: "<Aisha>", phone: "7771234", bloodType: "O+", telegramUserId: 12345 },
+    ]);
     const { api, calls } = interceptedApi();
     await expect(
       sendRegistrationNotification(api, config, db as unknown as AppDb, {
@@ -202,6 +208,8 @@ describe("Registration notification queue", () => {
     expect(calls[0]?.text).toContain("7771234");
     expect(calls[0]?.text).toContain("O+");
     expect(calls[0]?.text).toContain("Pending Review");
+    expect(calls[0]?.text).toContain('href="tg://user?id=12345"');
+    expect(calls[0]?.text).toContain('href="https://naifaru-blood-bot.majudhu.workers.dev"');
   });
 
   it.each(["Donor", "Reserved", "Temporary", "Non-Donor"] as const)(

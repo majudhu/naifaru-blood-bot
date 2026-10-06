@@ -40,15 +40,20 @@ export function formatMatchingRequestNotification(
 }
 
 export function formatRegistrationNotification(
-  user: Pick<User, "id" | "name" | "phone" | "bloodType">,
+  user: Pick<User, "id" | "name" | "phone" | "bloodType" | "telegramUserId">,
 ) {
   return [
     "<b>New donor pending review</b>",
     `User #${user.id}: ${escapeHtml(user.name.slice(0, 180))}`,
     `Phone: ${formatPhoneLink(user.phone)}`,
     `Blood type: ${escapeHtml(user.bloodType)}`,
-    "Open the web admin and select Pending Review. Contact the applicant and verify their details before approving or rejecting.",
-  ].join("\n");
+    user.telegramUserId
+      ? `<a href="tg://user?id=${user.telegramUserId}">Message applicant</a>`
+      : undefined,
+    'Open the <a href="https://naifaru-blood-bot.majudhu.workers.dev">web admin</a> and select Pending Review. Contact the applicant and verify their details before approving or rejecting.',
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function formatReadyDonorMessages(
