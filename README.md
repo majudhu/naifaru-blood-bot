@@ -37,6 +37,8 @@ For Cloudflare production, store secrets with `wrangler secret put` instead of c
 
 ### Donor Registration
 
+Share [the registration link](https://t.me/NaifaruBloodBot?start=register) or print the [registration QR code](public/donor-registration-qr.svg) ([PNG](public/donor-registration-qr.png)). After deployment, this link starts or resumes registration. Telegram may require the user to tap **Start** after scanning, especially when opening the bot for the first time.
+
 Add the bot to the private admin group and configure its numeric chat ID with `pnpm wrangler secret put TELEGRAM_ADMIN_GROUP_ID` before deploying. Use the same setting in `.dev.vars` locally. Run `pnpm cf-typegen` after changing Worker configuration.
 
 Non-donors can select **Register as Donor** or send `/register` in a private chat. The bot collects their own shared phone contact, name, blood type, national ID/passport number, sex, and address. Each answer is saved to their existing user row. `/start` or `/register` resumes a conversation; `/cancel` cancels it while keeping saved details. Completed applications have status **Pending Review** and generate an admin-group notification through the existing Telegram queue.

@@ -179,32 +179,35 @@ function queueSessionWrite(db: ReturnType<typeof createDbMock>) {
 }
 
 describe("Donor registration", () => {
-  it("lets a new Telegram user start registration and creates their row when sharing contact", async () => {
-    const db = createDbMock();
-    queueRegistrationConversation(db, {}, undefined);
-    const initialSession = queueSessionWrite(db);
-    const { bot, calls } = testBot(db);
-    await bot.handleUpdate(textUpdate(1, "/register"));
-    const session = JSON.parse(
-      (initialSession.values.mock.calls[0]![0] as { value: string }).value,
-    );
-    expect(session.registrationStep).toBe("phone");
-    expect(sentTexts(calls)[0]).toContain("Share Phone");
+  it.each(["/register", "/start register"])(
+    "starts registration with %s and creates the row when sharing contact",
+    async (command) => {
+      const db = createDbMock();
+      queueRegistrationConversation(db, {}, undefined);
+      const initialSession = queueSessionWrite(db);
+      const { bot, calls } = testBot(db);
+      await bot.handleUpdate(textUpdate(1, command));
+      const session = JSON.parse(
+        (initialSession.values.mock.calls[0]![0] as { value: string }).value,
+      );
+      expect(session.registrationStep).toBe("phone");
+      expect(sentTexts(calls)[0]).toContain("Share Phone");
 
-    queueRegistrationConversation(db, session, undefined);
-    db.queueSelect([]);
-    const profile = user({ status: "Non-Donor", bloodType: "", nid: null, sex: "", address: "" });
-    const insert = db.queueInsert([profile]);
-    const stored = queueSessionWrite(db);
-    await bot.handleUpdate(contactUpdate(2));
-    expect(insert.values).toHaveBeenCalledWith(
-      expect.objectContaining({ phone: "7771234", telegramUserId: 12345, status: "Non-Donor" }),
-    );
-    expect(
-      JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
-    ).toBe("name");
-    expect(sentTexts(calls).at(-1)).toBe("What is your full name?");
-  });
+      queueRegistrationConversation(db, session, undefined);
+      db.queueSelect([]);
+      const profile = user({ status: "Non-Donor", bloodType: "", nid: null, sex: "", address: "" });
+      const insert = db.queueInsert([profile]);
+      const stored = queueSessionWrite(db);
+      await bot.handleUpdate(contactUpdate(2));
+      expect(insert.values).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: "7771234", telegramUserId: 12345, status: "Non-Donor" }),
+      );
+      expect(
+        JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+      ).toBe("name");
+      expect(sentTexts(calls).at(-1)).toBe("What is your full name?");
+    },
+  );
 
   it.each([undefined, 9876])(
     "requires the applicant's own shared contact (%s)",
@@ -305,18 +308,21 @@ describe("Donor registration", () => {
     expect(sendNotificationBatch).toHaveBeenCalledOnce();
   });
 
-  it.each(["/start", "/register"])("resumes the saved next field with %s", async (command) => {
-    const db = createDbMock();
-    queueRegistrationConversation(db, { registrationStep: "nid" }, user({ status: "Non-Donor" }));
-    const stored = queueSessionWrite(db);
-    const { bot, calls, sendNotificationBatch } = testBot(db);
-    await bot.handleUpdate(textUpdate(1, command));
-    expect(sentTexts(calls)).toEqual(["What is your national ID or passport number?"]);
-    expect(
-      JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
-    ).toBe("nid");
-    expect(sendNotificationBatch).not.toHaveBeenCalled();
-  });
+  it.each(["/start", "/register", "/start register"])(
+    "resumes the saved next field with %s",
+    async (command) => {
+      const db = createDbMock();
+      queueRegistrationConversation(db, { registrationStep: "nid" }, user({ status: "Non-Donor" }));
+      const stored = queueSessionWrite(db);
+      const { bot, calls, sendNotificationBatch } = testBot(db);
+      await bot.handleUpdate(textUpdate(1, command));
+      expect(sentTexts(calls)).toEqual(["What is your national ID or passport number?"]);
+      expect(
+        JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+      ).toBe("nid");
+      expect(sendNotificationBatch).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["name", "bloodType", "nid", "sex", "address"] as const)(
     "requires a nonempty %s",

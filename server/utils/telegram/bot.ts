@@ -282,7 +282,7 @@ export function createTelegramBot(input: {
       return;
     }
 
-    if (ctx.session.registrationStep) {
+    if (payload === "register" || ctx.session.registrationStep) {
       await startRegistration(ctx, input.db);
       return;
     }
