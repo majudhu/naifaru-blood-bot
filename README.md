@@ -12,7 +12,7 @@ Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduct
 
 ## Telegram Bot Setup
 
-1. Copy `env.example` to `.env` for local development and fill in `NUXT_SESSION_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_CHANNEL_ID`, and `TELEGRAM_BOT_USERNAME`.
+1. Copy `env.example` to `.env` for Nuxt configuration and `.dev.vars` for local Worker bindings, and fill in `NUXT_SESSION_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_CHANNEL_ID`, `TELEGRAM_ADMIN_GROUP_ID`, and `TELEGRAM_BOT_USERNAME`.
 2. Add the bot as an admin in the Telegram channel configured by `TELEGRAM_CHANNEL_ID` so it can publish blood request posts.
 3. Create the donor notification queue and its dead-letter queue:
 
@@ -34,6 +34,18 @@ Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduct
 Donor notifications are published to Cloudflare Queues and delivered in bounded batches. Messages that still fail after five retries are retained in `naifaru-blood-bot-donor-notifications-dlq` for inspection.
 
 For Cloudflare production, store secrets with `wrangler secret put` instead of committing real values.
+
+### Donor Registration
+
+Add the bot to the private admin group and configure its numeric chat ID with `pnpm wrangler secret put TELEGRAM_ADMIN_GROUP_ID` before deploying. Use the same setting in `.dev.vars` locally. Run `pnpm cf-typegen` after changing Worker configuration.
+
+Non-donors can select **Register as Donor** or send `/register` in a private chat. The bot collects their own shared phone contact, name, blood type, national ID/passport number, sex, and address. Each answer is saved to their existing user row. `/start` or `/register` resumes a conversation; `/cancel` cancels it while keeping saved details. Completed applications have status **Pending Review** and generate an admin-group notification through the existing Telegram queue.
+
+Admins review applications using the dashboard's **New Donors Pending Review** card or status filter. Contact and verification are performed manually. In the existing edit dialog, select **Donor**, **Reserved**, or **Temporary** to approve, or **Non-Donor** to reject and save. Every status remains available; keeping **Pending Review** sends no outcome message. The bot queues a welcome or rejection message after review. Pending applicants are excluded from donor totals and matching, and may still request blood or volunteer through the existing help flow. Rejected applicants can register again.
+
+New applications also generate a direct Telegram notification to the web admin through the Telegram account linked to user row **17**. Group and direct notifications use separate queue messages so their delivery and retries are independent. User 17 must have a linked Telegram account and allow messages from the bot.
+
+The dashboard's new-donor count uses the existing user creation date; recent donations use their donation date over the last 30 days. Registration adds no SQL migration or audit records.
 
 ## Database Migrations
 

@@ -4,7 +4,7 @@ import { refDebounced } from "@vueuse/core";
 import type { InternalApi } from "nitropack";
 import { FetchError } from "ofetch";
 import type { User as DbUser } from "~~/server/schema";
-import { PER_PAGE, userStatusValues } from "~~/shared/utils/const";
+import { PER_PAGE, userStatusLabels, userStatusValues } from "~~/shared/utils/const";
 
 type UserRow = NonNullable<typeof data.value>["data"][number];
 
@@ -22,18 +22,21 @@ const donorStatuses = [
   { label: "Temporary", value: "Temporary" },
   { label: "Reserved", value: "Reserved" },
   { label: "Non-donors", value: "non-donors" },
+  { label: "Pending Review", value: "pending" },
   { label: "All users", value: "all" },
 ];
 
 const STATUS_FILTER: Record<DbUser["status"], string> = {
   Donor: "donors",
-  Temporary: "temporary",
-  Reserved: "reserved",
+  Temporary: "Temporary",
+  Reserved: "Reserved",
   "Non-Donor": "non-donors",
+  pending: "pending",
 };
 
 const toast = useToast();
 const { user } = useUserSession();
+const isAdmin = computed(() => user.value?.role === "admin");
 const isNurse = computed(() => user.value?.role === "nurse");
 const isLab = computed(() => user.value?.role === "lab");
 const canAddUser = computed(() => user.value?.role === "admin" || isLab.value);
@@ -50,13 +53,20 @@ const editDetails = shallowRef<Partial<InternalApi["/api/users/:id"]["get"]>>({}
 const expandDetails = ref(false);
 
 const isNew = computed(() => !editDetails.value.id);
-const isReadOnly = computed(() => isLab.value && !isNew.value);
+const isPendingReview = computed(() => editDetails.value.status === "pending");
+const isReadOnly = computed(
+  () => !isNew.value && (isLab.value || (isPendingReview.value && !isAdmin.value)),
+);
+const editStatuses = computed(() =>
+  userStatusValues.map((status) => ({ value: status, label: userStatusLabels[status] })),
+);
 const dialogTitle = computed(() =>
   isNew.value ? "Add User" : isReadOnly.value ? "View User" : "Edit User",
 );
 const age = computed(() => formatAge(edit.dob));
 
 const dashboard = await useLazyFetch("/api/dashboard");
+const hasPendingRegistrations = computed(() => (dashboard.data.value?.pending ?? 0) > 0);
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
   query: { page, search: searchDebounced, type, status: donorStatus, sex },
 });
@@ -106,7 +116,7 @@ const columns: TableColumn<UserRow>[] = [
         ? days < 1
           ? "Donor"
           : `Donor · ⏳ ${days} days`
-        : row.original.status;
+        : userStatusLabels[row.original.status];
     },
   },
 ];
@@ -132,16 +142,18 @@ async function save(event: FormSubmitEvent<typeof edit>) {
     isLoading.value = true;
 
     if (isNew.value) await $fetch("/api/users", { method: "POST", body: event.data });
-    else await $fetch(`/api/users/${editDetails.value.id}`, { method: "PUT", body: event.data });
-
-    donorStatus.value = event.data.status === "Non-Donor" ? "non-donors" : "donors";
-
-    if (isNew.value) {
-      donorStatus.value = STATUS_FILTER[event.data.status];
-      refresh().then(() => {
-        page.value = Math.ceil((data.value?.total! + 1) / PER_PAGE) || 1; // oxlint-disable-line typescript/no-non-null-asserted-optional-chain
+    else
+      await $fetch(`/api/users/${editDetails.value.id}`, {
+        method: "PUT",
+        body: { ...event.data, expectedStatus: editDetails.value.status },
       });
-    } else refresh();
+
+    const keepPendingFilter = isPendingReview.value && donorStatus.value === "pending";
+    if (!keepPendingFilter) donorStatus.value = STATUS_FILTER[event.data.status];
+
+    await Promise.all([refresh(), dashboard.refresh()]);
+    const lastPage = Math.max(1, Math.ceil((data.value?.total ?? 0) / PER_PAGE));
+    if (isNew.value || page.value > lastPage) page.value = lastPage;
 
     toast.add({
       title: isNew.value ? "User added" : "User updated",
@@ -168,7 +180,9 @@ function add() {
 
 async function onSelect(_event: Event, row: TableRow<UserRow>) {
   editDetails.value = row.original;
+  expandDetails.value = isAdmin.value && row.original.status === "pending";
   Object.assign(edit, {
+    ...BLANK_USER,
     ...row.original,
     lastDonatedAt: dateInputValue(row.original.lastDonatedAt),
   });
@@ -196,36 +210,70 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
     });
   }
 }
+
+function showUsers(status: "pending" | "donors") {
+  search.value = "";
+  type.value = "All";
+  sex.value = "all";
+  page.value = 1;
+  donorStatus.value = status;
+}
 </script>
 
 <template>
   <h1 class="text-2xl font-semibold pb-4">Dashboard</h1>
 
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
-    <NuxtLink to="#/requests">
+  <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
+    <NuxtLink to="/requests">
       <UCard
         :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
-        title="0"
+        :title="String(dashboard.data?.value?.activeRequests ?? 0)"
         description="Active Requests"
       />
     </NuxtLink>
-    <NuxtLink to="#/requests?priority=1">
+    <NuxtLink to="/" @click="showUsers('donors')">
       <UCard
         :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
-        title="0"
-        description="Priority Requests"
+        :title="String(dashboard.data?.value?.donors ?? 0)"
+        description="Total Donors"
       />
     </NuxtLink>
     <UCard
       :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
-      :title="String(dashboard.data?.value?.donors)"
-      description="Total Donors"
+      :title="String(dashboard.data?.value?.new ?? 0)"
+      description="New in the last 30 days"
     />
-    <UCard
-      :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
-      :title="String(dashboard.data?.value?.new)"
-      description="New this month"
-    />
+    <button
+      type="button"
+      class="relative text-left cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
+      @click="showUsers('pending')"
+    >
+      <UCard
+        :class="{ 'ring-warning': hasPendingRegistrations }"
+        :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
+        :title="String(dashboard.data?.value?.pending ?? 0)"
+        description="New Donors Pending Review"
+      />
+      <span
+        v-if="hasPendingRegistrations"
+        aria-hidden="true"
+        class="absolute top-3 right-3 size-2 rounded-full bg-warning motion-safe:animate-pulse"
+      />
+    </button>
+    <NuxtLink to="/donations">
+      <UCard
+        :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
+        :title="String(dashboard.data?.value?.donations ?? 0)"
+        description="Total Donations"
+      />
+    </NuxtLink>
+    <NuxtLink to="/donations">
+      <UCard
+        :ui="{ title: 'text-2xl', header: 'px-2 py-1 sm:px-3' }"
+        :title="String(dashboard.data?.value?.donationsLast30Days ?? 0)"
+        description="Donations in the last 30 days"
+      />
+    </NuxtLink>
   </div>
 
   <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
@@ -256,7 +304,7 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
   <div class="flex items-center flex-wrap gap-4">
     <UInput v-model="search" placeholder="Search" @change="page = 1" />
     <USelect v-model="type" :items="bloodTypes" class="w-20" @change="page = 1" />
-    <USelect v-model="donorStatus" :items="donorStatuses" class="w-32" @change="page = 1" />
+    <USelect v-model="donorStatus" :items="donorStatuses" class="w-40" @change="page = 1" />
 
     <USelect
       v-if="user?.role === 'admin'"
@@ -316,12 +364,21 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
             <UFormField label="Status" name="status" class="flex-1">
               <USelect
                 v-model="edit.status"
-                :items="userStatusValues"
+                :items="editStatuses"
                 class="w-full"
                 :disabled="isNurse || isReadOnly"
               />
             </UFormField>
           </div>
+
+          <UAlert
+            v-if="isPendingReview && isAdmin"
+            class="md:col-span-2"
+            color="neutral"
+            variant="outline"
+            :ui="{ root: 'px-3 py-1.5', description: 'text-xs text-toned' }"
+            description="Contact the applicant and verify their details. Set status to Donor, Reserved, or Temporary to approve, or Non-Donor to reject."
+          />
 
           <UFormField label="Phone">
             <UInput v-model="edit.phone" class="w-full" minlength="7" :disabled="isReadOnly" />
@@ -357,10 +414,6 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
                 <UInput v-model="edit.island" class="w-full" :disabled="isReadOnly" />
               </UFormField>
 
-              <UFormField label="Telegram User ID" class="opacity-50" v-if="!isNew">
-                <UInput :value="editDetails.telegramUserId" class="w-full" readonly />
-              </UFormField>
-
               <UFormField label="Telegram Username">
                 <UInput
                   v-model="edit.telegramUsername"
@@ -373,25 +426,41 @@ async function onSelect(_event: Event, row: TableRow<UserRow>) {
               <UFormField label="Notes" class="md:col-span-2">
                 <UTextarea v-model="edit.notes" class="w-full" :disabled="isReadOnly" />
               </UFormField>
-
-              <small v-if="editDetails.createdAt" class="md:col-span-2 text-muted">
-                Created:
-                <NuxtTime :datetime="editDetails.createdAt" date-style="short" time-style="short" />
-                &emsp; Updated:
-                <NuxtTime
-                  :datetime="editDetails.updatedAt!"
-                  date-style="short"
-                  time-style="short"
-                />
-              </small>
             </template>
           </UCollapsible>
+
+          <small v-if="!isNew" class="md:col-span-2 text-xs text-muted">
+            <template v-if="!expandDetails">
+              Sex:&nbsp;{{ edit.sex === "m" ? "Male" : edit.sex === "f" ? "Female" : "-" }} &bull;
+              DoB:&nbsp;{{ edit.dob || "-" }} &bull; Island:&nbsp;{{ edit.island || "-" }} &bull;
+              TG:&nbsp;{{ edit.telegramUsername || "-" }}
+              &bull;
+              <template v-if="edit.notes">
+                Notes:&nbsp;{{ edit.notes.slice(0, 10) || "-" }}... &bull;
+              </template>
+            </template>
+            Created:&nbsp;<NuxtTime
+              :datetime="editDetails.createdAt!"
+              date-style="short"
+              :time-style="expandDetails ? 'short' : undefined"
+            />
+            &bull; Updated:&nbsp;<NuxtTime
+              :datetime="editDetails.updatedAt!"
+              date-style="short"
+              :time-style="expandDetails ? 'short' : undefined"
+            />
+            <template v-if="expandDetails">
+              &bull; ID:&nbsp;{{ editDetails.id }} &bull; TGID:&nbsp;{{
+                editDetails.telegramUserId ?? "-"
+              }}
+            </template>
+          </small>
 
           <UButton
             v-if="!isReadOnly"
             type="submit"
             :icon="isNew ? 'i-lucide-user-plus' : 'i-lucide-user-check'"
-            :cloading="isLoading"
+            :loading="isLoading"
             :disabled="isLoading"
           >
             {{ isNew ? "Add" : "Save" }}

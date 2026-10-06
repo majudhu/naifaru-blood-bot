@@ -40,7 +40,7 @@ Table donors {
   phone varchar [unique]
   blood_type blood_type [not null]
   island varchar
-  status varchar [not null, default: 'Non-Donor', note: 'Donor, Temporary, Reserved, Non-Donor']
+  status varchar [not null, default: 'Non-Donor', note: 'Donor, Temporary, Reserved, Non-Donor, pending (Pending Review)']
   last_donated_at timestamp
   notes text
   created_at timestamp [not null]

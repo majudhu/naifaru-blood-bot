@@ -18,6 +18,7 @@ export function getTelegramConfig(env: TelegramEnv): TelegramConfig {
     botToken: env.TELEGRAM_BOT_TOKEN.trim(),
     botUsername: env.TELEGRAM_BOT_USERNAME.trim(),
     channelId: parseChannelId(env.TELEGRAM_CHANNEL_ID),
+    adminGroupId: parseChannelId(env.TELEGRAM_ADMIN_GROUP_ID),
     webhookSecret: env.TELEGRAM_WEBHOOK_SECRET.trim(),
   };
 }

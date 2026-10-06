@@ -1,4 +1,4 @@
-import { DATE_NIL, DAY_MS } from "../../../shared/utils/const";
+import { DATE_NIL, DAY_MS, userStatusLabels } from "../../../shared/utils/const";
 import type { BloodRequest, User } from "../../schema";
 
 export const TELEGRAM_MESSAGE_LENGTH_LIMIT = 4096;
@@ -36,6 +36,18 @@ export function formatMatchingRequestNotification(
     `Requester: ${escapeHtml(requester.name)}`,
     `Blood group: <b>${escapeHtml(request.bloodType)}</b>`,
     `Phone: ${formatPhoneLink(requester.phone ?? null)}`,
+  ].join("\n");
+}
+
+export function formatRegistrationNotification(
+  user: Pick<User, "id" | "name" | "phone" | "bloodType">,
+) {
+  return [
+    "<b>New donor pending review</b>",
+    `User #${user.id}: ${escapeHtml(user.name.slice(0, 180))}`,
+    `Phone: ${formatPhoneLink(user.phone)}`,
+    `Blood type: ${escapeHtml(user.bloodType)}`,
+    "Open the web admin and select Pending Review. Contact the applicant and verify their details before approving or rejecting.",
   ].join("\n");
 }
 
@@ -144,7 +156,7 @@ export function formatDonorProfile(user: User, now = Date.now()) {
     `Blood group: ${escapeHtml(user.bloodType || "-")}`,
     `Phone: ${formatPhoneLink(user.phone)}`,
     // `Island: ${escapeHtml(user.island || "Not recorded")}`,
-    `Status: ${escapeHtml(user.status)}`,
+    `Status: ${escapeHtml(userStatusLabels[user.status])}`,
     `Last donation: ${hasDonation ? `${90 - days} days ago • ${date(user.lastDonatedAt)}` : "Not recorded"}`,
     hasDonation
       ? days > 0

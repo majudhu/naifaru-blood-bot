@@ -1,16 +1,25 @@
 import { Bot, session } from "grammy";
 
-import { bloodRequestKeyboard, contactKeyboard, helpKeyboard, mainMenuKeyboard } from "./keyboards";
+import { donorStatusValues } from "../../../shared/utils/const";
+import {
+  bloodRequestKeyboard,
+  contactKeyboard,
+  helpKeyboard,
+  mainMenuKeyboard,
+  registrationKeyboard,
+} from "./keyboards";
 import {
   acceptHelpOffer,
   createBloodRequest,
   findReadyDonors,
   findUserByTelegramId,
   isBloodType,
+  normalizePhone,
   recordChannelMessage,
   upsertTelegramContactUser,
 } from "./services";
-import { enqueueDonorNotifications } from "./notifications";
+import { enqueueDonorNotifications, enqueueRegistrationNotification } from "./notifications";
+import { nextRegistrationStep, registrationPrompts, saveRegistrationAnswer } from "./registration";
 import { createD1SessionStorage, markTelegramUpdateProcessed } from "./storage";
 import {
   formatChannelRequest,
@@ -43,6 +52,7 @@ async function registeredUser(ctx: TelegramContext, db: AppDb) {
 }
 
 async function startRequest(ctx: TelegramContext, db: AppDb) {
+  ctx.session.registrationStep = undefined;
   if (ctx.session.pendingHelpRequestId) {
     await promptForContact(ctx);
     return;
@@ -71,7 +81,7 @@ async function showDonorProfile(ctx: TelegramContext, db: AppDb) {
   }
   const user = await registeredUser(ctx, db);
   if (!user) return;
-  if (user.status === "Non-Donor") {
+  if (!donorStatusValues.some((status) => status === user.status)) {
     await ctx.reply("Donor profiles are available only to registered donors.", {
       reply_markup: mainMenuKeyboard(user.status),
     });
@@ -88,6 +98,7 @@ async function offerHelp(ctx: TelegramContext, db: AppDb, requestId: number) {
   if (!donorTelegramUserId) return;
 
   ctx.session.pendingBloodRequest = undefined;
+  ctx.session.registrationStep = undefined;
   const donor = await findUserByTelegramId(db, donorTelegramUserId);
   if (!donor) {
     ctx.session.pendingHelpRequestId = requestId;
@@ -150,6 +161,82 @@ async function tryPendingHelp(ctx: TelegramContext, db: AppDb) {
   await offerHelp(ctx, db, requestId);
 }
 
+async function promptRegistrationStep(ctx: TelegramContext) {
+  const step = ctx.session.registrationStep;
+  if (!step) return;
+  await ctx.reply(registrationPrompts[step], { reply_markup: registrationKeyboard(step) });
+}
+
+async function startRegistration(ctx: TelegramContext, db: AppDb) {
+  if (!ctx.from) return;
+  const user = await findUserByTelegramId(db, ctx.from.id);
+  if (user?.status === "pending") {
+    ctx.session.registrationStep = undefined;
+    await ctx.reply(
+      "Your donor registration is Pending Review. An admin will review your details.",
+      {
+        reply_markup: mainMenuKeyboard(user.status),
+      },
+    );
+    return;
+  }
+  if (user && user.status !== "Non-Donor") {
+    ctx.session.registrationStep = undefined;
+    await showDonorProfile(ctx, db);
+    return;
+  }
+  ctx.session.pendingBloodRequest = undefined;
+  ctx.session.pendingHelpRequestId = undefined;
+  ctx.session.registrationStep ??= "phone";
+  await promptRegistrationStep(ctx);
+}
+
+async function cancelRegistration(ctx: TelegramContext, db: AppDb) {
+  ctx.session.registrationStep = undefined;
+  const user = ctx.from ? await findUserByTelegramId(db, ctx.from.id) : undefined;
+  await ctx.reply("Registration cancelled. Your saved details have been kept.", {
+    reply_markup: user ? mainMenuKeyboard(user.status) : contactKeyboard(),
+  });
+}
+
+async function answerRegistration(
+  ctx: TelegramContext,
+  db: AppDb,
+  queue: Env["TELEGRAM_DONOR_NOTIFICATIONS"],
+) {
+  const step = ctx.session.registrationStep;
+  if (!step || !ctx.from) return;
+  if (step === "phone" || !ctx.message?.text || ctx.message.text.startsWith("/")) {
+    await promptRegistrationStep(ctx);
+    return;
+  }
+  const user = await findUserByTelegramId(db, ctx.from.id);
+  if (!user || user.status !== "Non-Donor") {
+    ctx.session.registrationStep = undefined;
+    await startRegistration(ctx, db);
+    return;
+  }
+  const result = await saveRegistrationAnswer(db, user, step, ctx.message.text);
+  if ("message" in result) {
+    await ctx.reply(result.message);
+    await promptRegistrationStep(ctx);
+    return;
+  }
+  if (result.user.status === "pending") {
+    ctx.session.registrationStep = undefined;
+    await enqueueRegistrationNotification(queue, {
+      type: "registration_submitted",
+      userId: result.user.id,
+    });
+    await ctx.reply("Your donor registration has been submitted. Status: Pending Review.", {
+      reply_markup: mainMenuKeyboard(result.user.status),
+    });
+    return;
+  }
+  if (step !== "address") ctx.session.registrationStep = nextRegistrationStep[step];
+  await promptRegistrationStep(ctx);
+}
+
 export function createTelegramBot(input: {
   config: TelegramConfig;
   db: AppDb;
@@ -157,6 +244,18 @@ export function createTelegramBot(input: {
 }) {
   const bot = new Bot<TelegramContext>(input.config.botToken, {
     botInfo: input.config.botInfo,
+  });
+
+  bot.use(async (ctx, next) => {
+    if (ctx.chat?.type === "private") {
+      await next();
+      return;
+    }
+    if (ctx.callbackQuery) {
+      await ctx.answerCallbackQuery({ text: "Please open a private chat with me." });
+      if (ctx.callbackQuery.data === "donor:profile")
+        await ctx.reply("Please open a private chat with me to view your donor profile.");
+    }
   });
 
   bot.use(async (ctx, next) => {
@@ -183,6 +282,11 @@ export function createTelegramBot(input: {
       return;
     }
 
+    if (ctx.session.registrationStep) {
+      await startRegistration(ctx, input.db);
+      return;
+    }
+
     const user = ctx.from ? await findUserByTelegramId(input.db, ctx.from.id) : undefined;
     if (!user) {
       await promptForContact(ctx);
@@ -191,6 +295,11 @@ export function createTelegramBot(input: {
 
     await ctx.reply("Welcome back.", { reply_markup: mainMenuKeyboard(user.status) });
   });
+
+  bot.command("register", (ctx) => startRegistration(ctx, input.db));
+  bot.hears("Register as Donor", (ctx) => startRegistration(ctx, input.db));
+  bot.command("cancel", (ctx) => cancelRegistration(ctx, input.db));
+  bot.hears("Cancel Registration", (ctx) => cancelRegistration(ctx, input.db));
 
   bot.hears("My Donor Profile", (ctx) => showDonorProfile(ctx, input.db));
   bot.callbackQuery("donor:profile", async (ctx) => {
@@ -206,12 +315,32 @@ export function createTelegramBot(input: {
     const contact = ctx.message.contact;
     if (!from) return;
 
-    if (contact.user_id && contact.user_id !== from.id) {
-      await ctx.reply("Please share your own contact using the START button.");
+    if (contact.user_id !== from.id || normalizePhone(contact.phone_number).length < 7) {
+      await ctx.reply("Please share your own contact using the contact-sharing button.");
+      return;
+    }
+
+    if (ctx.session.registrationStep && ctx.session.registrationStep !== "phone") {
+      await promptRegistrationStep(ctx);
       return;
     }
 
     const user = await upsertTelegramContactUser(input.db, contact, from);
+    if (!user) {
+      await ctx.reply(
+        "This phone number belongs to another account. Please contact an admin to resolve it.",
+      );
+      return;
+    }
+    if (ctx.session.registrationStep === "phone") {
+      if (user.status !== "Non-Donor") {
+        await startRegistration(ctx, input.db);
+        return;
+      }
+      ctx.session.registrationStep = "name";
+      await promptRegistrationStep(ctx);
+      return;
+    }
     await ctx.reply("Registration saved.", {
       reply_markup: mainMenuKeyboard(user.status),
     });
@@ -296,8 +425,11 @@ export function createTelegramBot(input: {
     await offerHelp(ctx, input.db, requestId);
   });
 
-  bot.on("message:text", (ctx) => startRequest(ctx, input.db));
-  bot.chatType("private").on("message", (ctx) => startRequest(ctx, input.db));
+  bot.on("message", (ctx) =>
+    ctx.session.registrationStep
+      ? answerRegistration(ctx, input.db, input.notificationQueue)
+      : startRequest(ctx, input.db),
+  );
 
   bot.on("callback_query:data", async (ctx) => {
     await ctx.answerCallbackQuery({

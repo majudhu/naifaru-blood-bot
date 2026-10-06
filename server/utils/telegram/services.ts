@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { bloodTypeValues, DATE_NIL } from "../../../shared/utils/const";
 import {
   bloodRequests,
@@ -71,18 +71,29 @@ export async function upsertTelegramContactUser(
     `Telegram ${from.id}`;
   const existingByTelegram = await findUserByTelegramId(db, from.id);
   const updateValues = {
-    name,
     phone,
     telegramUsername,
     updatedAt: sql`unixepoch()`,
   };
 
   if (existingByTelegram) {
-    await db.update(users).set(updateValues).where(eq(users.id, existingByTelegram.id));
+    if (existingByTelegram.status === "pending") return existingByTelegram;
+    if (existingByTelegram.phone !== phone) {
+      const [existingByPhone] = await db
+        .select()
+        .from(users)
+        .where(eq(users.phone, phone))
+        .limit(1);
+      if (existingByPhone && existingByPhone.id !== existingByTelegram.id) return undefined;
+    }
+    const result = await db
+      .update(users)
+      .set(updateValues)
+      .where(and(eq(users.id, existingByTelegram.id), ne(users.status, "pending")));
+    if (result.meta.changes === 0) return findUserByTelegramId(db, from.id);
 
     return {
       ...existingByTelegram,
-      name,
       phone,
       telegramUsername,
       updatedAt: new Date(),
@@ -92,14 +103,22 @@ export async function upsertTelegramContactUser(
   const [existingByPhone] = await db.select().from(users).where(eq(users.phone, phone)).limit(1);
 
   if (existingByPhone) {
-    await db
+    if (existingByPhone.telegramUserId !== null && existingByPhone.telegramUserId !== from.id)
+      return undefined;
+    const result = await db
       .update(users)
       .set({ ...updateValues, telegramUserId: from.id })
-      .where(eq(users.id, existingByPhone.id));
+      .where(
+        and(
+          eq(users.id, existingByPhone.id),
+          ne(users.status, "pending"),
+          or(isNull(users.telegramUserId), eq(users.telegramUserId, from.id)),
+        ),
+      );
+    if (result.meta.changes === 0) return undefined;
 
     return {
       ...existingByPhone,
-      name,
       phone,
       telegramUserId: from.id,
       telegramUsername,

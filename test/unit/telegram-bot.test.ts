@@ -5,7 +5,7 @@ import type { Update } from "grammy/types";
 
 import type { User } from "../../server/schema";
 import { createTelegramBot } from "../../server/utils/telegram/bot";
-import type { AppDb } from "../../server/utils/telegram/types";
+import type { AppDb, TelegramSession } from "../../server/utils/telegram/types";
 import { DATE_NIL } from "../../shared/utils/const";
 import { createDbMock } from "./api-test-utils";
 
@@ -135,6 +135,7 @@ function testBot(db: ReturnType<typeof createDbMock>) {
       botToken: "999:test",
       botUsername: "blood_test_bot",
       channelId: -100123,
+      adminGroupId: -100456,
       webhookSecret: "secret",
     },
     db: db as unknown as AppDb,
@@ -161,6 +162,294 @@ function sentTexts(calls: ApiCall[]) {
   return calls.filter(({ method }) => method === "sendMessage").map(({ payload }) => payload.text);
 }
 
+function queueRegistrationConversation(
+  db: ReturnType<typeof createDbMock>,
+  session: TelegramSession,
+  profile: User | undefined,
+) {
+  db.queueSelect([]);
+  db.queueSelect([{ value: JSON.stringify(session) }]);
+  db.queueSelect(profile ? [profile] : []);
+  db.queueInsert([]);
+}
+
+function queueSessionWrite(db: ReturnType<typeof createDbMock>) {
+  db.queueSelect([]);
+  return db.queueInsert([]);
+}
+
+describe("Donor registration", () => {
+  it("lets a new Telegram user start registration and creates their row when sharing contact", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, {}, undefined);
+    const initialSession = queueSessionWrite(db);
+    const { bot, calls } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "/register"));
+    const session = JSON.parse(
+      (initialSession.values.mock.calls[0]![0] as { value: string }).value,
+    );
+    expect(session.registrationStep).toBe("phone");
+    expect(sentTexts(calls)[0]).toContain("Share Phone");
+
+    queueRegistrationConversation(db, session, undefined);
+    db.queueSelect([]);
+    const profile = user({ status: "Non-Donor", bloodType: "", nid: null, sex: "", address: "" });
+    const insert = db.queueInsert([profile]);
+    const stored = queueSessionWrite(db);
+    await bot.handleUpdate(contactUpdate(2));
+    expect(insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: "7771234", telegramUserId: 12345, status: "Non-Donor" }),
+    );
+    expect(
+      JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+    ).toBe("name");
+    expect(sentTexts(calls).at(-1)).toBe("What is your full name?");
+  });
+
+  it.each([undefined, 9876])(
+    "requires the applicant's own shared contact (%s)",
+    async (contactId) => {
+      const db = createDbMock();
+      db.queueSelect([]);
+      db.queueSelect([{ value: JSON.stringify({ registrationStep: "phone" }) }]);
+      db.queueInsert([]);
+      const { bot, calls } = testBot(db);
+      const update = contactUpdate(1);
+      if (!update.message?.contact) throw new Error("Missing contact");
+      update.message.contact.user_id = contactId;
+      await bot.handleUpdate(update);
+      expect(sentTexts(calls)[0]).toContain("share your own contact");
+      expect(db.update).not.toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("handles a phone already linked to another Telegram account without merging users", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, { registrationStep: "phone" }, undefined);
+    db.queueSelect([user({ telegramUserId: 9876 })]);
+    const stored = queueSessionWrite(db);
+    const { bot, calls } = testBot(db);
+    await bot.handleUpdate(contactUpdate(1));
+    expect(sentTexts(calls)[0]).toContain("belongs to another account");
+    expect(db.update).not.toHaveBeenCalled();
+    expect(
+      JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+    ).toBe("phone");
+  });
+
+  it("collects every answer on the same row and submits only once", async () => {
+    const db = createDbMock();
+    const { bot, calls, sendNotificationBatch } = testBot(db);
+    let profile = user({ status: "Non-Donor", bloodType: "", nid: null, sex: "", address: "" });
+    let session: TelegramSession = {};
+    queueRegistrationConversation(db, session, profile);
+    let stored = queueSessionWrite(db);
+    await bot.handleUpdate(textUpdate(1, "Register as Donor"));
+    session = JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value);
+    expect(session.registrationStep).toBe("phone");
+
+    queueRegistrationConversation(db, session, profile);
+    db.queueUpdate({ meta: { changes: 1 } });
+    stored = queueSessionWrite(db);
+    await bot.handleUpdate(contactUpdate(2));
+    session = JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value);
+    expect(session.registrationStep).toBe("name");
+
+    const answers: {
+      step: TelegramSession["registrationStep"];
+      text: string;
+      patch: Partial<User>;
+    }[] = [
+      { step: "name", text: " Aisha Rasheed ", patch: { name: "Aisha Rasheed" } },
+      { step: "bloodType", text: "o+", patch: { bloodType: "O+" } },
+      { step: "nid", text: "a123456", patch: { nid: "A123456" } },
+      { step: "sex", text: "Female", patch: { sex: "f" } },
+      { step: "address", text: " Harbour Road ", patch: { address: "Harbour Road" } },
+    ];
+    for (const [index, answer] of answers.entries()) {
+      expect(session.registrationStep).toBe(answer.step);
+      queueRegistrationConversation(db, session, profile);
+      if (answer.step === "nid") db.queueSelect([]);
+      profile = {
+        ...profile,
+        ...answer.patch,
+        status: answer.step === "address" ? "pending" : "Non-Donor",
+      };
+      const update = db.queueUpdate([profile]);
+      stored = queueSessionWrite(db);
+      await bot.handleUpdate(textUpdate(index + 3, answer.text));
+      expect(update.set).toHaveBeenCalledWith(expect.objectContaining(answer.patch));
+      const values = update.set.mock.calls[0]![0] as Record<string, unknown>;
+      expect(values).not.toHaveProperty("dob");
+      expect(values).not.toHaveProperty("island");
+      expect(Object.hasOwn(values, "status")).toBe(answer.step === "address");
+      session = JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value);
+    }
+    expect(profile.status).toBe("pending");
+    expect(session.registrationStep).toBeUndefined();
+    expect(sentTexts(calls).at(-1)).toContain("Pending Review");
+    expect(sendNotificationBatch).toHaveBeenCalledExactlyOnceWith([
+      {
+        body: { type: "registration_submitted", userId: profile.id },
+        contentType: "json",
+      },
+      {
+        body: { type: "registration_admin_dm", userId: profile.id, recipientUserId: 17 },
+        contentType: "json",
+      },
+    ]);
+
+    db.queueSelect([{ updateId: 7 }]);
+    await bot.handleUpdate(textUpdate(7, "Harbour Road"));
+    expect(sendNotificationBatch).toHaveBeenCalledOnce();
+  });
+
+  it.each(["/start", "/register"])("resumes the saved next field with %s", async (command) => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, { registrationStep: "nid" }, user({ status: "Non-Donor" }));
+    const stored = queueSessionWrite(db);
+    const { bot, calls, sendNotificationBatch } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, command));
+    expect(sentTexts(calls)).toEqual(["What is your national ID or passport number?"]);
+    expect(
+      JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+    ).toBe("nid");
+    expect(sendNotificationBatch).not.toHaveBeenCalled();
+  });
+
+  it.each(["name", "bloodType", "nid", "sex", "address"] as const)(
+    "requires a nonempty %s",
+    async (step) => {
+      const db = createDbMock();
+      queueRegistrationConversation(db, { registrationStep: step }, user({ status: "Non-Donor" }));
+      const stored = queueSessionWrite(db);
+      const { bot, calls, sendNotificationBatch } = testBot(db);
+      await bot.handleUpdate(textUpdate(1, "   "));
+      expect(sentTexts(calls)[0]).toContain("required");
+      expect(db.update).not.toHaveBeenCalled();
+      expect(
+        JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+      ).toBe(step);
+      expect(sendNotificationBatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["bloodType", "unknown"],
+    ["sex", "unknown"],
+  ] as const)("rejects invalid %s choices", async (step, text) => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, { registrationStep: step }, user({ status: "Non-Donor" }));
+    queueSessionWrite(db);
+    const { bot, calls } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, text));
+    expect(sentTexts(calls)[0]).toContain("Please select");
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps duplicate IDs separate for an admin to resolve", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, { registrationStep: "nid" }, user({ status: "Non-Donor" }));
+    db.queueSelect([{ id: 8 }]);
+    queueSessionWrite(db);
+    const { bot, calls } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "A123456"));
+    expect(sentTexts(calls)[0]).toContain("already registered");
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("cancels without removing saved details", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, { registrationStep: "sex" }, user({ status: "Non-Donor" }));
+    const stored = queueSessionWrite(db);
+    const { bot, calls } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "/cancel"));
+    expect(
+      JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+    ).toBeUndefined();
+    expect(db.update).not.toHaveBeenCalled();
+    expect(sentTexts(calls)[0]).toContain("saved details have been kept");
+  });
+
+  it("allows rejected non-donors to register again", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, {}, user({ status: "Non-Donor" }));
+    const stored = queueSessionWrite(db);
+    const { bot, calls } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "/register"));
+    expect(
+      JSON.parse((stored.values.mock.calls[0]![0] as { value: string }).value).registrationStep,
+    ).toBe("phone");
+    expect(sentTexts(calls)[0]).toContain("Share Phone");
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps completed applicants pending without another submission", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, {}, user({ status: "pending" }));
+    queueSessionWrite(db);
+    const { bot, calls, sendNotificationBatch } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "/register"));
+    expect(sentTexts(calls)[0]).toContain("Pending Review");
+    expect(db.update).not.toHaveBeenCalled();
+    expect(sendNotificationBatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps approved profiles when donors try to register again", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(db, {}, user());
+    db.queueSelect([user()]);
+    queueSessionWrite(db);
+    const { bot, calls } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "/register"));
+    expect(sentTexts(calls)[0]).toContain("Name: Aisha");
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("does not submit an incomplete profile at the final field", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(
+      db,
+      { registrationStep: "address" },
+      user({ status: "Non-Donor", bloodType: "" }),
+    );
+    queueSessionWrite(db);
+    const { bot, calls, sendNotificationBatch } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "Harbour Road"));
+    expect(sentTexts(calls)[0]).toContain("required details are missing");
+    expect(db.update).not.toHaveBeenCalled();
+    expect(sendNotificationBatch).not.toHaveBeenCalled();
+  });
+
+  it("does not notify if another submission already changed the user's status", async () => {
+    const db = createDbMock();
+    queueRegistrationConversation(
+      db,
+      { registrationStep: "address" },
+      user({ status: "Non-Donor" }),
+    );
+    db.queueUpdate([]);
+    queueSessionWrite(db);
+    const { bot, calls, sendNotificationBatch } = testBot(db);
+    await bot.handleUpdate(textUpdate(1, "Harbour Road"));
+    expect(sentTexts(calls)[0]).toContain("registration has changed");
+    expect(sendNotificationBatch).not.toHaveBeenCalled();
+  });
+
+  it("ignores ordinary admin-group messages without creating users or sessions", async () => {
+    const db = createDbMock();
+    const { bot, calls } = testBot(db);
+    const update = textUpdate(1, "hello admins");
+    if (!update.message) throw new Error("Missing message");
+    update.message.chat = { id: -100456, title: "Admins", type: "supergroup" };
+    await bot.handleUpdate(update);
+    expect(calls).toEqual([]);
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+});
+
 describe("Telegram message fallback", () => {
   it.each(["Donor", "Temporary", "Reserved", "Non-Donor"] as const)(
     "refreshes the menu and blood groups when a %s sends arbitrary text",
@@ -183,7 +472,7 @@ describe("Telegram message fallback", () => {
       expect(calls[0]?.payload.reply_markup).toMatchObject({
         keyboard:
           status === "Non-Donor"
-            ? [[{ text: "Request Blood" }]]
+            ? [[{ text: "Request Blood" }], [{ text: "Register as Donor" }]]
             : [[{ text: "Request Blood" }], [{ text: "My Donor Profile" }]],
       });
       expect(calls[1]?.payload.reply_markup).toMatchObject({
@@ -286,6 +575,7 @@ describe("Telegram message fallback", () => {
       db.queueInsert([]);
       db.queueInsert([]);
       if (status === "Non-Donor") db.queueInsert([user({ status })]);
+      if (status === "Donor") db.queueUpdate({ meta: { changes: 1 } });
       const { bot, calls } = testBot(db);
 
       await bot.handleUpdate(textUpdate(3, "I need blood"));

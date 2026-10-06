@@ -27,6 +27,15 @@ export type TestEvent = {
   query: Record<string, string | undefined>;
   session: TestSession;
   writtenSession?: unknown;
+  context: {
+    cloudflare: {
+      env: {
+        TELEGRAM_DONOR_NOTIFICATIONS: {
+          sendBatch: ReturnType<typeof vi.fn<(messages: unknown[]) => Promise<void>>>;
+        };
+      };
+    };
+  };
 };
 
 type QueryChain<T> = {
@@ -127,6 +136,15 @@ export function createEvent(overrides: Partial<TestEvent> = {}): TestEvent {
     params: {},
     query: {},
     session: { user: { id: 1, name: "Admin", role: "admin" } },
+    context: {
+      cloudflare: {
+        env: {
+          TELEGRAM_DONOR_NOTIFICATIONS: {
+            sendBatch: vi.fn<(messages: unknown[]) => Promise<void>>(async () => {}),
+          },
+        },
+      },
+    },
     ...overrides,
   };
 }

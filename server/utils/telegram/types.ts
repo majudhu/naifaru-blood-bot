@@ -10,6 +10,7 @@ export type BloodType = Exclude<(typeof bloodTypeValues)[number], "">;
 export type TelegramSession = {
   pendingBloodRequest?: boolean;
   pendingHelpRequestId?: number;
+  registrationStep?: "phone" | "name" | "bloodType" | "nid" | "sex" | "address";
 };
 
 export type TelegramContext = Context & SessionFlavor<TelegramSession>;
@@ -19,6 +20,7 @@ export type TelegramConfig = {
   botToken: string;
   botUsername: string;
   channelId: number | string;
+  adminGroupId: number | string;
   webhookSecret: string;
 };
 

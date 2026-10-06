@@ -1,14 +1,15 @@
 import { InlineKeyboard, Keyboard } from "grammy";
 
-import { bloodTypeValues } from "../../../shared/utils/const";
+import { bloodTypeValues, donorStatusValues } from "../../../shared/utils/const";
 import type { User } from "../../schema";
-import type { BloodType } from "./types";
+import type { BloodType, TelegramSession } from "./types";
 
 const bloodTypes = bloodTypeValues.filter(Boolean) as BloodType[];
 
 export function mainMenuKeyboard(status: User["status"]) {
   const keyboard = new Keyboard().text("Request Blood").danger();
-  if (status !== "Non-Donor") keyboard.row().text("My Donor Profile");
+  if (donorStatusValues.some((value) => value === status)) keyboard.row().text("My Donor Profile");
+  if (status === "Non-Donor") keyboard.row().text("Register as Donor");
   return keyboard.resized();
 }
 
@@ -26,8 +27,23 @@ export function bloodRequestKeyboard(status: User["status"]) {
     if (index > 0 && index % 2 === 0) keyboard.row();
     keyboard.text(bloodType, `request:type:${bloodType}`);
   });
-  if (status !== "Non-Donor") keyboard.row().text("My Donor Profile", "donor:profile");
+  if (donorStatusValues.some((value) => value === status))
+    keyboard.row().text("My Donor Profile", "donor:profile");
   return keyboard;
+}
+
+export function registrationKeyboard(step: TelegramSession["registrationStep"]) {
+  const keyboard = new Keyboard();
+  if (step === "phone") keyboard.requestContact("Share Phone");
+  if (step === "bloodType") {
+    bloodTypes.forEach((bloodType, index) => {
+      if (index > 0 && index % 2 === 0) keyboard.row();
+      keyboard.text(bloodType);
+    });
+  }
+  if (step === "sex") keyboard.text("Male").text("Female");
+  if (step === "phone" || step === "bloodType" || step === "sex") keyboard.row();
+  return keyboard.text("Cancel Registration").resized();
 }
 
 export function helpKeyboard(requestId: number, botUsername: string) {

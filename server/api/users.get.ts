@@ -1,21 +1,18 @@
-import { and, count, eq, ne, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
-import { PER_PAGE } from "~~/shared/utils/const";
+import { and, count, eq, inArray, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
+import { donorStatusValues, PER_PAGE } from "~~/shared/utils/const";
 
-type Status = "ready" | "cooldown" | "donors" | "non-donors" | "Temporary" | "Reserved";
+type Status = "ready" | "cooldown" | "donors" | "non-donors" | "Temporary" | "Reserved" | "pending";
+
+const donorFilter = inArray(schema.users.status, donorStatusValues);
 
 const STATUS_FILTER: Record<Status, SQL<unknown> | undefined> = {
-  ready: and(
-    ne(schema.users.status, "Non-Donor"),
-    lte(schema.users.lastDonatedAt, sql`unixepoch('now', '-90 days')`),
-  ),
-  cooldown: and(
-    ne(schema.users.status, "Non-Donor"),
-    gt(schema.users.lastDonatedAt, sql`unixepoch('now', '-90 days')`),
-  ),
+  ready: and(donorFilter, lte(schema.users.lastDonatedAt, sql`unixepoch('now', '-90 days')`)),
+  cooldown: and(donorFilter, gt(schema.users.lastDonatedAt, sql`unixepoch('now', '-90 days')`)),
   Temporary: eq(schema.users.status, "Temporary"),
   Reserved: eq(schema.users.status, "Reserved"),
-  donors: and(ne(schema.users.status, "Non-Donor")),
+  donors: donorFilter,
   "non-donors": and(eq(schema.users.status, "Non-Donor")),
+  pending: eq(schema.users.status, "pending"),
 };
 
 export default defineEventHandler(async (event) => {

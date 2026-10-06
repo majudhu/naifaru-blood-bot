@@ -103,6 +103,83 @@ describe("Telegram webhook security", () => {
 });
 
 describe("Telegram contact onboarding", () => {
+  it("preserves a registered name when contact is shared again", async () => {
+    const db = dbMock();
+    db.queueSelect([user({ name: "Aisha Rasheed" })]);
+    const update = db.queueUpdate({ meta: { changes: 1 } });
+    await expect(
+      upsertTelegramContactUser(
+        db,
+        { first_name: "Nickname", phone_number: "7771234" },
+        { id: 12345 },
+      ),
+    ).resolves.toMatchObject({ name: "Aisha Rasheed" });
+    expect(update.set.mock.calls[0]![0]).not.toHaveProperty("name");
+  });
+
+  it("does not transfer a phone-linked user from another Telegram account", async () => {
+    const db = dbMock();
+    db.queueSelect([]);
+    db.queueSelect([user({ telegramUserId: 88 })]);
+    await expect(
+      upsertTelegramContactUser(db, { phone_number: "7771234" }, { id: 12345 }),
+    ).resolves.toBeUndefined();
+    expect(db.update).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("does not claim a contact linked to another account during onboarding", async () => {
+    const db = dbMock();
+    db.queueSelect([]);
+    db.queueSelect([user({ telegramUserId: null })]);
+    const update = db.queueUpdate({ meta: { changes: 0 } });
+    await expect(
+      upsertTelegramContactUser(db, { phone_number: "7771234" }, { id: 12345 }),
+    ).resolves.toBeUndefined();
+    const query = new SQLiteSyncDialect().sqlToQuery(update.where.mock.calls[0]![0] as SQL);
+    expect(query.sql).toContain('"users"."telegram_user_id" is null');
+    expect(query.params).toContain(12345);
+    expect(query.params).toContain("pending");
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("does not edit details if a registration becomes pending during contact sharing", async () => {
+    const db = dbMock();
+    db.queueSelect([user({ status: "Non-Donor" })]);
+    const update = db.queueUpdate({ meta: { changes: 0 } });
+    const pending = user({ status: "pending" });
+    db.queueSelect([pending]);
+    await expect(
+      upsertTelegramContactUser(db, { phone_number: "7771234" }, { id: 12345 }),
+    ).resolves.toEqual(pending);
+    const query = new SQLiteSyncDialect().sqlToQuery(update.where.mock.calls[0]![0] as SQL);
+    expect(query.params).toEqual([7, "pending"]);
+  });
+
+  it("does not overwrite another user's phone when a linked user changes contacts", async () => {
+    const db = dbMock();
+    db.queueSelect([user({ phone: "7000000" })]);
+    db.queueSelect([user({ id: 8, telegramUserId: 88 })]);
+    await expect(
+      upsertTelegramContactUser(db, { phone_number: "7771234" }, { id: 12345 }),
+    ).resolves.toBeUndefined();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("leaves submitted details untouched while waiting for review", async () => {
+    const db = dbMock();
+    const pending = user({ status: "pending" });
+    db.queueSelect([pending]);
+    await expect(
+      upsertTelegramContactUser(
+        db,
+        { first_name: "Other", phone_number: "7000000" },
+        { id: 12345 },
+      ),
+    ).resolves.toEqual(pending);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it("creates a requester profile from a shared Telegram contact", async () => {
     const db = dbMock();
     db.queueSelect([]);

@@ -249,7 +249,7 @@ describe("staff API", () => {
 });
 
 describe("users API", () => {
-  it.each(["Donor", "Temporary", "Reserved", "Non-Donor"])(
+  it.each(["Donor", "Temporary", "Reserved", "Non-Donor", "pending"])(
     "accepts user status %s",
     async (status) => {
       const { CreateuserParser } = await import("../../server/api/users.post");
@@ -266,6 +266,7 @@ describe("users API", () => {
     ["non-donors", "Non-Donor"],
     ["Temporary", "Temporary"],
     ["Reserved", "Reserved"],
+    ["pending", "pending"],
   ])("filters users by %s", async (filter, status) => {
     const { default: handler } = await import("../../server/api/users.get");
     const db = createDbMock();
@@ -286,8 +287,8 @@ describe("users API", () => {
       db.queueSelect([{ count: 0 }]);
       await handler(createEvent({ db, query: { status } }));
       const query = new SQLiteSyncDialect().sqlToQuery(list.where.mock.calls[0]![0] as SQL);
-      expect(query.sql).toContain('"users"."status" <> ?');
-      expect(query.params).toEqual(["Non-Donor"]);
+      expect(query.sql).toContain('"users"."status" in (?, ?, ?)');
+      expect(query.params).toEqual(["Donor", "Temporary", "Reserved"]);
     },
   );
 
@@ -378,18 +379,22 @@ describe("users API", () => {
     );
 
     const db = createDbMock();
-    db.queueSelect([{ lastDonatedAt: new Date(DATE_NIL) }]);
+    db.queueSelect([
+      { lastDonatedAt: new Date(DATE_NIL), status: "Non-Donor", telegramUserId: null },
+    ]);
     db.queueUpdate({ meta: { changes: 0 } });
     await expectRejectsWithStatus(
       handler(createEvent({ body: validUserBody, db, params: { id: "404" } })),
-      404,
+      409,
     );
   });
 
   it("records a donation when the last donation date changes", async () => {
     const { default: handler } = await import("../../server/api/users/[id].put");
     const db = createDbMock();
-    db.queueSelect([{ lastDonatedAt: new Date(DATE_NIL) }]);
+    db.queueSelect([
+      { lastDonatedAt: new Date(DATE_NIL), status: "Non-Donor", telegramUserId: null },
+    ]);
     db.queueUpdate({ meta: { changes: 1 } });
     const insert = db.queueInsert([{ id: 99 }]);
     const event = createEvent({
@@ -410,7 +415,9 @@ describe("users API", () => {
   it("does not record a donation when the last donation date is unchanged", async () => {
     const { default: handler } = await import("../../server/api/users/[id].put");
     const db = createDbMock();
-    db.queueSelect([{ lastDonatedAt: new Date("2026-09-01") }]);
+    db.queueSelect([
+      { lastDonatedAt: new Date("2026-09-01"), status: "Non-Donor", telegramUserId: null },
+    ]);
     db.queueUpdate({ meta: { changes: 1 } });
     const event = createEvent({
       body: { ...validUserBody, lastDonatedAt: "2026-09-01" },
@@ -426,7 +433,9 @@ describe("users API", () => {
   it("does not record a donation when the last donation date is cleared", async () => {
     const { default: handler } = await import("../../server/api/users/[id].put");
     const db = createDbMock();
-    db.queueSelect([{ lastDonatedAt: new Date("2026-09-01") }]);
+    db.queueSelect([
+      { lastDonatedAt: new Date("2026-09-01"), status: "Non-Donor", telegramUserId: null },
+    ]);
     db.queueUpdate({ meta: { changes: 1 } });
     const event = createEvent({
       body: { ...validUserBody, lastDonatedAt: "" },
@@ -437,6 +446,111 @@ describe("users API", () => {
     await expect(handler(event)).resolves.toBeNull();
 
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it.each(["Donor", "Reserved", "Temporary", "Non-Donor"] as const)(
+    "queues the pending review outcome %s once",
+    async (status) => {
+      const { default: handler } = await import("../../server/api/users/[id].put");
+      const db = createDbMock();
+      db.queueSelect([
+        { lastDonatedAt: new Date(DATE_NIL), status: "pending", telegramUserId: 12345 },
+      ]);
+      const update = db.queueUpdate({ meta: { changes: 1 } });
+      const event = createEvent({
+        body: { ...validUserBody, status, expectedStatus: "pending" },
+        db,
+        params: { id: "7" },
+      });
+      await expect(handler(event)).resolves.toBeNull();
+      const queue = event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS;
+      expect(queue.sendBatch).toHaveBeenCalledExactlyOnceWith([
+        {
+          body: { type: "registration_reviewed", userId: 7, telegramUserId: 12345, status },
+          contentType: "json",
+        },
+      ]);
+      expect(
+        new SQLiteSyncDialect().sqlToQuery(update.where.mock.calls[0]![0] as SQL).params,
+      ).toEqual([7, "pending"]);
+
+      db.queueSelect([{ lastDonatedAt: new Date(DATE_NIL), status, telegramUserId: 12345 }]);
+      db.queueUpdate({ meta: { changes: 1 } });
+      event.body = { ...validUserBody, status, expectedStatus: status };
+      await expect(handler(event)).resolves.toBeNull();
+      expect(queue.sendBatch).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["nurse", "lab"])("rejects pending application edits by %s", async (role) => {
+    const { default: handler } = await import("../../server/api/users/[id].put");
+    const db = createDbMock();
+    db.queueSelect([
+      { lastDonatedAt: new Date(DATE_NIL), status: "pending", telegramUserId: 12345 },
+    ]);
+    const event = createEvent({
+      body: { ...validUserBody, status: "pending" },
+      db,
+      params: { id: "7" },
+      session: { user: { id: 3, role } },
+    });
+    await expectRejectsWithStatus(handler(event), 403);
+    expect(db.update).not.toHaveBeenCalled();
+    expect(
+      event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS.sendBatch,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("allows an admin to correct pending details without resolving or notifying", async () => {
+    const { default: handler } = await import("../../server/api/users/[id].put");
+    const db = createDbMock();
+    db.queueSelect([
+      { lastDonatedAt: new Date(DATE_NIL), status: "pending", telegramUserId: 12345 },
+    ]);
+    db.queueUpdate({ meta: { changes: 1 } });
+    const event = createEvent({
+      body: { ...validUserBody, status: "pending" },
+      db,
+      params: { id: "7" },
+    });
+    await expect(handler(event)).resolves.toBeNull();
+    expect(
+      event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS.sendBatch,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale review even when the other admin has already finished saving", async () => {
+    const { default: handler } = await import("../../server/api/users/[id].put");
+    const db = createDbMock();
+    db.queueSelect([{ lastDonatedAt: new Date(DATE_NIL), status: "Donor", telegramUserId: 12345 }]);
+    const event = createEvent({
+      body: { ...validUserBody, status: "Non-Donor", expectedStatus: "pending" },
+      db,
+      params: { id: "7" },
+    });
+    await expectRejectsWithStatus(handler(event), 409);
+    expect(db.update).not.toHaveBeenCalled();
+    expect(
+      event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS.sendBatch,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("does not queue a review lost to a concurrent status change", async () => {
+    const { default: handler } = await import("../../server/api/users/[id].put");
+    const db = createDbMock();
+    db.queueSelect([
+      { lastDonatedAt: new Date(DATE_NIL), status: "pending", telegramUserId: 12345 },
+    ]);
+    db.queueUpdate({ meta: { changes: 0 } });
+    const event = createEvent({
+      body: { ...validUserBody, status: "Donor" },
+      db,
+      params: { id: "7" },
+    });
+    await expectRejectsWithStatus(handler(event), 409);
+    expect(
+      event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS.sendBatch,
+    ).not.toHaveBeenCalled();
   });
 });
 
@@ -664,17 +778,33 @@ describe("dashboard API", () => {
       db.queueSelect([{ count: 18 }]),
       db.queueSelect(groups),
     ];
+    const active = db.queueSelect([{ count: 2 }]);
+    const pending = db.queueSelect([{ count: 3 }]);
+    db.queueSelect([{ count: 80 }]);
+    const recent = db.queueSelect([{ count: 6 }]);
 
     await expect(handler(createEvent({ db }))).resolves.toEqual({
       donors: 30,
       groups,
       new: 5,
       ready: 18,
+      activeRequests: 2,
+      pending: 3,
+      donations: 80,
+      donationsLast30Days: 6,
     });
     for (const select of queries) {
       const query = new SQLiteSyncDialect().sqlToQuery(select.where.mock.calls[0]![0] as SQL);
-      expect(query.sql).toContain('"users"."status" <> ?');
-      expect(query.params).toEqual(["Non-Donor"]);
+      expect(query.sql).toContain('"users"."status" in (?, ?, ?)');
+      expect(query.params).toEqual(["Donor", "Temporary", "Reserved"]);
     }
+    const dialect = new SQLiteSyncDialect();
+    expect(dialect.sqlToQuery(active.where.mock.calls[0]![0] as SQL).params).toEqual(["open"]);
+    expect(dialect.sqlToQuery(pending.where.mock.calls[0]![0] as SQL).params).toEqual(["pending"]);
+    const recentQuery = dialect.sqlToQuery(recent.where.mock.calls[0]![0] as SQL);
+    expect(recentQuery.sql).toContain(
+      "\"donations\".\"donated_at\" >= unixepoch('now', '-30 days')",
+    );
+    expect(recentQuery.sql).toContain('"donations"."donated_at" <= unixepoch(\'now\')');
   });
 });
