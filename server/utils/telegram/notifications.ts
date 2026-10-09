@@ -30,13 +30,16 @@ export type RegistrationNotificationJob =
 
 export type CooldownReminderJob = { type: "cooldown_reminder"; userId: number; donatedAt: number };
 
+export type DonorSummaryJob = { type: "donor_summary"; userId: number };
+
 export type TelegramNotificationJob =
   | DonorNotificationJob
   | RegistrationNotificationJob
+  | DonorSummaryJob
   | CooldownReminderJob;
 
 const registrationWelcomeMessage =
-  "Your donor registration has been approved. Welcome to Naifaru Blood Donors!";
+  "Welcome to the Naifaru Blood Donors community! You're now on our donor list.";
 
 export const registrationOutcomeMessages = {
   Donor: registrationWelcomeMessage,
@@ -125,6 +128,15 @@ export async function enqueueRegistrationNotification(
   await queue.sendBatch(messages);
 }
 
+export async function enqueueDonorSummary(
+  queue: Env["TELEGRAM_DONOR_NOTIFICATIONS"],
+  userId: number,
+) {
+  await queue.sendBatch([
+    { body: { type: "donor_summary", userId } satisfies DonorSummaryJob, contentType: "json" },
+  ]);
+}
+
 export function parseTelegramNotificationJob(body: unknown): TelegramNotificationJob | undefined {
   const donorJob = parseDonorNotificationJob(body);
   if (donorJob) return donorJob;
@@ -132,6 +144,7 @@ export function parseTelegramNotificationJob(body: unknown): TelegramNotificatio
   const job = body as Record<string, unknown>;
   if (typeof job.userId !== "number" || !Number.isSafeInteger(job.userId) || job.userId <= 0)
     return undefined;
+  if (job.type === "donor_summary") return { type: job.type, userId: job.userId };
   if (
     job.type === "cooldown_reminder" &&
     typeof job.donatedAt === "number" &&

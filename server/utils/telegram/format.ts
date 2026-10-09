@@ -165,8 +165,8 @@ export function formatDonorProfile(user: User, now = Date.now()) {
     `Last donation: ${hasDonation ? `${90 - days} days ago • ${date(user.lastDonatedAt)}` : "Not recorded"}`,
     hasDonation
       ? days > 0
-        ? `Can donate after: ${days} days • ${date(new Date(eligibleAt))}`
-        : `Can donate since: ${date(new Date(eligibleAt))} • ${-days} days ago`
+        ? `You can donate in ${days} ${days === 1 ? "day" : "days"} • ${date(new Date(eligibleAt))}`
+        : "You are ready to donate. Help save a life!"
       : undefined,
   ]
     .join("\n")

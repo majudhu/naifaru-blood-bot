@@ -742,7 +742,7 @@ describe("Donor profiles", () => {
     );
     expect(text).toContain("Name: &lt;Aisha&gt;");
     expect(text).toContain("Last donation: 89 days ago • 1 January 2026");
-    expect(text).toContain("Can donate after: 1 days • 1 April 2026");
+    expect(text).toContain("You can donate in 1 day • 1 April 2026");
   });
 
   it("marks the donor eligible exactly after 90 days", () => {
@@ -753,7 +753,7 @@ describe("Donor profiles", () => {
       Date.parse("2026-04-01T00:00:00Z"),
     );
     expect(text).toContain("Last donation: 90 days ago • 1 January 2026");
-    expect(text).toContain("Can donate since: 1 April 2026 • 0 days ago");
+    expect(text).toContain("You are ready to donate. Help save a life!");
   });
 
   it("reports the real days since a donation once the cooldown has passed", () => {
@@ -764,7 +764,7 @@ describe("Donor profiles", () => {
       Date.parse("2026-03-31T12:00:00Z"),
     );
     expect(text).toContain("Last donation: 96 days ago • 25 December 2025");
-    expect(text).toContain("Can donate since: 25 March 2026 • 6 days ago");
+    expect(text).toContain("You are ready to donate. Help save a life!");
   });
 
   it("does not show the sentinel as a donation date", () => {

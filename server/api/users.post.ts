@@ -1,5 +1,6 @@
 import * as v from "valibot";
-import { DATE_NIL, userStatusValues } from "../../shared/utils/const";
+import { DATE_NIL, donorStatusValues, userStatusValues } from "../../shared/utils/const";
+import { enqueueDonorSummary } from "../utils/telegram/notifications";
 
 const dateParser = v.pipe(
   v.optional(v.string(), ""),
@@ -61,6 +62,13 @@ export default defineEventHandler(async (event) => {
     });
 
   const [newUser] = await db.insert(schema.users).values(body).returning({ id: schema.users.id });
+
+  if (donorStatusValues.some((status) => status === body.status)) {
+    await enqueueDonorSummary(
+      event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS,
+      newUser!.id,
+    );
+  }
 
   return newUser;
 });

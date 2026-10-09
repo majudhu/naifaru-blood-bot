@@ -352,6 +352,41 @@ describe("users API", () => {
     );
   });
 
+  it.each(["Donor", "Temporary", "Reserved"] as const)(
+    "queues a summary when a %s is added",
+    async (status) => {
+      const { default: handler } = await import("../../server/api/users.post");
+      const db = createDbMock();
+      db.queueInsert([{ id: 12 }]);
+      const event = createEvent({ body: { ...validUserBody, status }, db });
+      await handler(event);
+      expect(
+        event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS.sendBatch,
+      ).toHaveBeenCalledExactlyOnceWith([
+        { body: { type: "donor_summary", userId: 12 }, contentType: "json" },
+      ]);
+    },
+  );
+
+  it.each(["Donor", "Temporary", "Reserved"] as const)(
+    "queues a summary for a %s approval without a linked Telegram account",
+    async (status) => {
+      const { default: handler } = await import("../../server/api/users/[id].put");
+      const db = createDbMock();
+      db.queueSelect([
+        { lastDonatedAt: new Date(DATE_NIL), status: "pending", telegramUserId: null },
+      ]);
+      db.queueUpdate({ meta: { changes: 1 } });
+      const event = createEvent({ body: { ...validUserBody, status }, db, params: { id: "7" } });
+      await handler(event);
+      expect(
+        event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS.sendBatch,
+      ).toHaveBeenCalledExactlyOnceWith([
+        { body: { type: "donor_summary", userId: 7 }, contentType: "json" },
+      ]);
+    },
+  );
+
   it("gets users by id and reports missing users", async () => {
     const { default: handler } = await import("../../server/api/users/[id].get");
     const db = createDbMock();
@@ -464,12 +499,18 @@ describe("users API", () => {
       });
       await expect(handler(event)).resolves.toBeNull();
       const queue = event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS;
-      expect(queue.sendBatch).toHaveBeenCalledExactlyOnceWith([
+      expect(queue.sendBatch).toHaveBeenCalledWith([
         {
           body: { type: "registration_reviewed", userId: 7, telegramUserId: 12345, status },
           contentType: "json",
         },
       ]);
+      if (status !== "Non-Donor") {
+        // oxlint-disable-next-line vitest/no-conditional-expect -- Rejected registrations do not publish donor summaries.
+        expect(queue.sendBatch).toHaveBeenCalledWith([
+          { body: { type: "donor_summary", userId: 7 }, contentType: "json" },
+        ]);
+      }
       expect(
         new SQLiteSyncDialect().sqlToQuery(update.where.mock.calls[0]![0] as SQL).params,
       ).toEqual([7, "pending"]);
@@ -478,7 +519,7 @@ describe("users API", () => {
       db.queueUpdate({ meta: { changes: 1 } });
       event.body = { ...validUserBody, status, expectedStatus: status };
       await expect(handler(event)).resolves.toBeNull();
-      expect(queue.sendBatch).toHaveBeenCalledOnce();
+      expect(queue.sendBatch).toHaveBeenCalledTimes(status === "Non-Donor" ? 1 : 2);
     },
   );
 

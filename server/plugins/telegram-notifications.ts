@@ -2,6 +2,7 @@ import { Api } from "grammy";
 
 import { completeCooldownReminder, sendCooldownReminder } from "../utils/telegram/cooldown";
 import { createDb } from "../utils/db";
+import { sendDonorSummary } from "../utils/telegram/donor-summary";
 import { getTelegramConfig } from "../utils/telegram/config";
 import {
   classifyTelegramDeliveryError,
@@ -38,6 +39,12 @@ export default defineNitroPlugin((nitroApp) => {
       const requestId = job.type === "donor_notification" ? job.requestId : undefined;
       let chatId: number | string | undefined;
       try {
+        if (job.type === "donor_summary") {
+          chatId = config.adminGroupId;
+          await sendDonorSummary(api, config, db, job.userId);
+          message.ack();
+          continue;
+        }
         if (job.type === "cooldown_reminder") {
           await sendCooldownReminder(api, db, job);
           message.ack();

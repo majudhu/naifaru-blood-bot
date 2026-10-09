@@ -1,8 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { createError } from "h3";
 import * as v from "valibot";
-import { DATE_NIL, userStatusValues } from "../../../shared/utils/const";
-import { enqueueRegistrationNotification } from "../../utils/telegram/notifications";
+import { DATE_NIL, donorStatusValues, userStatusValues } from "../../../shared/utils/const";
+import {
+  enqueueDonorSummary,
+  enqueueRegistrationNotification,
+} from "../../utils/telegram/notifications";
 import { CreateUserSchema } from "../users.post";
 
 const UpdateUserParser = v.parser(
@@ -66,6 +69,13 @@ export default defineEventHandler(async (event) => {
       bloodType: body.bloodType,
       donatedAt: body.lastDonatedAt,
     });
+  }
+
+  if (
+    !donorStatusValues.some((status) => status === existing.status) &&
+    donorStatusValues.some((status) => status === body.status)
+  ) {
+    await enqueueDonorSummary(event.context.cloudflare.env.TELEGRAM_DONOR_NOTIFICATIONS, userId);
   }
 
   if (
