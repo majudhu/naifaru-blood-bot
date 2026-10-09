@@ -15,7 +15,7 @@ export const registrationPrompts = {
   bloodType: "Select your blood type.",
   nid: "What is your national ID or passport number?",
   sex: "Select your sex.",
-  address: "What is your address?",
+  address: "What is your current address?",
 } as const;
 
 export const nextRegistrationStep = {
