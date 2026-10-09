@@ -1,5 +1,6 @@
 import { Api } from "grammy";
 
+import { completeCooldownReminder, sendCooldownReminder } from "../utils/telegram/cooldown";
 import { createDb } from "../utils/db";
 import { getTelegramConfig } from "../utils/telegram/config";
 import {
@@ -37,6 +38,11 @@ export default defineNitroPlugin((nitroApp) => {
       const requestId = job.type === "donor_notification" ? job.requestId : undefined;
       let chatId: number | string | undefined;
       try {
+        if (job.type === "cooldown_reminder") {
+          await sendCooldownReminder(api, db, job);
+          message.ack();
+          continue;
+        }
         if (job.type !== "donor_notification") {
           if (job.type === "registration_submitted") chatId = config.adminGroupId;
           if (job.type === "registration_reviewed") chatId = job.telegramUserId;
@@ -78,6 +84,7 @@ export default defineNitroPlugin((nitroApp) => {
         };
 
         if (disposition?.action === "discard") {
+          if (job.type === "cooldown_reminder") await completeCooldownReminder(db, job);
           console.warn({
             chatId,
             event: "telegram_donor_notification_discarded",

@@ -27,6 +27,8 @@
     },
   ],
 
+  "triggers": { "crons": ["0 4 * * *"] },
+
   "queues": {
     "producers": [
       {

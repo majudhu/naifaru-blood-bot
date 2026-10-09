@@ -75,3 +75,15 @@ Remove the files in `.wrangler/state/v3/d1/miniflare-D1DatabaseObject`
 3. Change the default user password ASAP
 
 Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+
+Donor cooldown reminders run daily at 09:00 Maldives time (04:00 UTC). Active
+Donor accounts with a linked Telegram ID receive a DM after their recorded
+90-day cooldown ends. The existing notification queue handles delivery retries;
+a reminder record prevents subsequent daily reminders for the same donation.
+Eligibility and the donation date are checked again before sending. Blocked or
+missing chats are recorded as completed so they are not attempted every day.
+Migration `0005_cooldown-reminders.sql` marks historical expired cooldowns as
+completed to avoid a rollout backlog. Apply this migration before deploying the
+Worker with the new cron trigger. Telegram delivery and the database update are
+separate operations, so a failure after Telegram accepts a message can cause a
+repeat on retry.

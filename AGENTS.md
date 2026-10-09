@@ -6,6 +6,17 @@
 - Let unexpected platform, config, and runtime failures throw naturally. Do not catch, parse, wrap, or recover from unexpected errors unless the user explicitly asks for that behavior.
 - Keep validation for expected user input and business rules, but do not mask impossible deployment-state failures.
 
+## App language and tone
+
+- Use friendly, warm, and motivating language in all user-facing app text and Telegram messages.
+- Write simple, concise English for a community whose primary language is not English. Use familiar words, short sentences, and one clear idea at a time.
+- Assume readers may be new to blood donation and unfamiliar with medical or technical terms. Use everyday wording, such as "90-day wait" instead of "cooldown" or "eligibility period". Briefly explain an unfamiliar term only when it is needed.
+- Make the next step clear when a message asks the reader to act. Keep instructions short and easy to follow.
+- Encourage helping others with kindness and gratitude. Avoid pressure, guilt, fear, judgment, or assumptions about a person's willingness to donate.
+- Keep health-related statements accurate. Do not imply that a waiting period ending guarantees someone is medically able to donate.
+- Respect wording the user has chosen. Suggest or make small improvements only when they clearly improve clarity, warmth, or accuracy.
+- Apply this guidance to new or explicitly requested text changes. Do not rewrite existing app text as part of an unrelated task.
+
 ## Git commits
 
 When asked to create a Git commit:

@@ -28,7 +28,12 @@ export type RegistrationNotificationJob =
       status: Exclude<User["status"], "pending">;
     };
 
-export type TelegramNotificationJob = DonorNotificationJob | RegistrationNotificationJob;
+export type CooldownReminderJob = { type: "cooldown_reminder"; userId: number; donatedAt: number };
+
+export type TelegramNotificationJob =
+  | DonorNotificationJob
+  | RegistrationNotificationJob
+  | CooldownReminderJob;
 
 const registrationWelcomeMessage =
   "Your donor registration has been approved. Welcome to Naifaru Blood Donors!";
@@ -127,6 +132,12 @@ export function parseTelegramNotificationJob(body: unknown): TelegramNotificatio
   const job = body as Record<string, unknown>;
   if (typeof job.userId !== "number" || !Number.isSafeInteger(job.userId) || job.userId <= 0)
     return undefined;
+  if (
+    job.type === "cooldown_reminder" &&
+    typeof job.donatedAt === "number" &&
+    Number.isSafeInteger(job.donatedAt)
+  )
+    return { type: job.type, userId: job.userId, donatedAt: job.donatedAt };
   if (job.type === "registration_submitted") return { type: job.type, userId: job.userId };
   if (
     job.type === "registration_admin_dm" &&

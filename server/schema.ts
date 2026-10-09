@@ -1,5 +1,12 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import {
   bloodTypeValues,
   DATE_NIL,
@@ -46,6 +53,17 @@ export const users = sqliteTable(
     index("users_status_idx").on(table.status),
     index("users_last_donated_at_idx").on(table.lastDonatedAt),
   ],
+);
+
+export const cooldownReminders = sqliteTable(
+  "cooldown_reminders",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    donatedAt: integer("donated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.donatedAt] })],
 );
 
 export const bloodRequests = sqliteTable(
