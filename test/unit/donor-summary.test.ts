@@ -35,26 +35,39 @@ describe("Admin donor summary", () => {
     };
     const api = new Api(config.botToken);
     const calls: Record<string, unknown>[] = [];
-    api.config.use(async (_previous, _method, payload) => {
+    const methods: string[] = [];
+    api.config.use(async (_previous, method, payload) => {
+      methods.push(method);
       calls.push(payload as unknown as Record<string, unknown>);
       return { ok: true, result: true } as never;
     });
     await sendDonorSummary(api, config, db, 1);
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ chat_id: config.adminGroupId, parse_mode: "HTML" });
-    const message = calls[0]?.text;
-    expect(message).toContain("New donor: <b>&lt;Aisha&gt; Ahmed A+</b>\nTotal: 5");
-    expect(String(message).split("\n")).toHaveLength(11);
+    expect(methods).toEqual(["sendRichMessage"]);
+    expect(calls[0]).toMatchObject({ chat_id: config.adminGroupId });
+    const message = (calls[0]!.rich_message as { html: string }).html;
+    expect(message).toContain("<p>New donor: <b>&lt;Aisha&gt; Ahmed A+</b></p>\n<p>Total: 5");
+    expect(message).toContain("<table bordered compact>");
+    expect(message.match(/<tr>/g)).toHaveLength(9);
+    expect(message.match(/<td /g)).toHaveLength(45);
+    expect(message).not.toContain("<th");
+    expect(message).not.toContain("<pre");
     expect(message).not.toContain("By blood group");
     expect(message).toContain("Total: 5");
     expect(message).toContain("Donor: 3");
     expect(message).toContain("Cooldown: 2 ⏳");
     expect(message).toContain("Temp: 1 🕒");
     expect(message).toContain("Reserved: 1 🔒");
-    expect(message).toContain("A+: 3 • 2 ⏳ • 1 🕒 • 0 🔒");
-    expect(message).toContain("O-: 1 • 0 ⏳ • 0 🕒 • 1 🔒");
-    expect(message).toContain("AB-: 0 • 0 ⏳ • 0 🕒 • 0 🔒");
-    expect(message).toContain("Unknown: 1");
+    expect(message).toContain(
+      '<tr><td align="right">A+:</td><td align="right">3</td><td align="right">2 ⏳</td><td align="right">1 🕒</td><td align="right">0 🔒</td></tr>',
+    );
+    expect(message).toContain(
+      '<tr><td align="right">O-:</td><td align="right">1</td><td align="right">0 ⏳</td><td align="right">0 🕒</td><td align="right">1 🔒</td></tr>',
+    );
+    expect(message).toContain(
+      '<tr><td align="right">AB-:</td><td align="right">0</td><td align="right">0 ⏳</td><td align="right">0 🕒</td><td align="right">0 🔒</td></tr>',
+    );
+    expect(message).toContain('<td align="right">Unknown:</td><td align="right">1</td>');
     sqlite.close();
   });
 

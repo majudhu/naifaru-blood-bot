@@ -741,8 +741,8 @@ describe("Donor profiles", () => {
       Date.parse("2026-03-31T12:00:00Z"),
     );
     expect(text).toContain("Name: &lt;Aisha&gt;");
-    expect(text).toContain("Last donation: 89 days ago • 1 January 2026");
-    expect(text).toContain("You can donate in 1 day • 1 April 2026");
+    expect(text).toContain("Last donation: 1 January 2026 - 89 days ago");
+    expect(text).toContain("You can donate in 1 day - 1 April 2026");
   });
 
   it("marks the donor eligible exactly after 90 days", () => {
@@ -752,7 +752,7 @@ describe("Donor profiles", () => {
       }),
       Date.parse("2026-04-01T00:00:00Z"),
     );
-    expect(text).toContain("Last donation: 90 days ago • 1 January 2026");
+    expect(text).toContain("Last donation: 1 January 2026 - 90 days ago");
     expect(text).toContain("You are ready to donate. Help save a life!");
   });
 
@@ -763,7 +763,7 @@ describe("Donor profiles", () => {
       }),
       Date.parse("2026-03-31T12:00:00Z"),
     );
-    expect(text).toContain("Last donation: 96 days ago • 25 December 2025");
+    expect(text).toContain("Last donation: 25 December 2025 - 96 days ago");
     expect(text).toContain("You are ready to donate. Help save a life!");
   });
 

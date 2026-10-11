@@ -30,14 +30,16 @@ export function formatDonorSummary(donor: SummaryDonor, groups: DonorSummaryGrou
   const shortDetail = (value: string) =>
     escapeHtml(value.replace(/\s+/g, " ").trim().slice(0, 180));
   return [
-    `New donor: <b>${shortDetail(donor.name)} ${escapeHtml(donor.bloodType || "Unknown")}</b>`,
-    `Total: ${totals.total}, Donor: ${totals.total - totals.temporary - totals.reserved}, Cooldown: ${totals.waiting} ⏳, Temp: ${totals.temporary} 🕒, Reserved: ${totals.reserved} 🔒`,
+    `<p>New donor: <b>${shortDetail(donor.name)} ${escapeHtml(donor.bloodType || "Unknown")}</b></p>`,
+    `<p>Total: ${totals.total}, Donor: ${totals.total - totals.temporary - totals.reserved}, Cooldown: ${totals.waiting} ⏳, Temp: ${totals.temporary} 🕒, Reserved: ${totals.reserved} 🔒</p>`,
+    "<table bordered compact>",
     ...bloodTypeValues
       .filter((bloodType) => bloodType !== "" || groups.some((group) => group.bloodType === ""))
       .map((bloodType) => {
         const group = groups.find((group) => group.bloodType === bloodType);
-        return `${bloodType || "Unknown"}: ${group?.total ?? 0} • ${group?.waiting ?? 0} ⏳ • ${group?.temporary ?? 0} 🕒 • ${group?.reserved ?? 0} 🔒`;
+        return `<tr><td align="right">${bloodType || "Unknown"}:</td><td align="right">${group?.total ?? 0}</td><td align="right">${group?.waiting ?? 0} ⏳</td><td align="right">${group?.temporary ?? 0} 🕒</td><td align="right">${group?.reserved ?? 0} 🔒</td></tr>`;
       }),
+    "</table>",
   ].join("\n");
 }
 
@@ -73,7 +75,7 @@ export async function sendDonorSummary(
     .from(users)
     .where(inArray(users.status, donorStatusValues))
     .groupBy(users.bloodType);
-  await api.sendMessage(config.adminGroupId, formatDonorSummary(donor, groups), {
-    parse_mode: "HTML",
+  await api.sendRichMessage(config.adminGroupId, {
+    html: formatDonorSummary(donor, groups),
   });
 }

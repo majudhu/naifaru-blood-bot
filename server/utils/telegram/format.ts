@@ -162,10 +162,10 @@ export function formatDonorProfile(user: User, now = Date.now()) {
     `Phone: ${formatPhoneLink(user.phone)}`,
     // `Island: ${escapeHtml(user.island || "Not recorded")}`,
     `Status: ${escapeHtml(userStatusLabels[user.status])}`,
-    `Last donation: ${hasDonation ? `${90 - days} days ago • ${date(user.lastDonatedAt)}` : "Not recorded"}`,
+    `Last donation: ${hasDonation ? `${date(user.lastDonatedAt)} - ${90 - days} days ago` : "Not recorded"}`,
     hasDonation
       ? days > 0
-        ? `You can donate in ${days} ${days === 1 ? "day" : "days"} • ${date(new Date(eligibleAt))}`
+        ? `You can donate in ${days} ${days === 1 ? "day" : "days"} - ${date(new Date(eligibleAt))}`
         : "You are ready to donate. Help save a life!"
       : undefined,
   ]
