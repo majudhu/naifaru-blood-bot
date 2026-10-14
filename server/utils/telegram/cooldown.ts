@@ -86,7 +86,7 @@ export async function sendCooldownReminder(
   if (!donor?.telegramUserId) return false;
   await api.sendMessage(
     donor.telegramUserId,
-    "Your 90-day wait is over. You could help save a life by donating blood again. Thank you for being part of Naifaru Blood Donors!",
+    "Your 90-day wait is over! Help save a life! Donate blood again! Thank you for being part of Naifaru Blood Donors!",
     { reply_markup: mainMenuKeyboard("Donor") },
   );
   await completeCooldownReminder(db, job);
