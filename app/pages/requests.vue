@@ -41,13 +41,13 @@ const responseStatuses = {
   donated: { label: "Donated", color: "primary" },
 } as const;
 
-watch([search, type, status, priority], () => {
+watch([search, type, status, priority, month], () => {
   page.value = 1;
 });
 
-const summary = await useLazyFetch("/api/requests-summary", { query: { month } });
+const summary = await useLazyFetch("/api/requests-summary", { query: { month, type } });
 const { data, pending, refresh } = await useLazyFetch("/api/requests", {
-  query: { page, search, type, status, priority },
+  query: { page, search, type, status, priority, month },
 });
 
 const columns: TableColumn<RequestRow>[] = [
@@ -153,7 +153,7 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
     if (isNew.value) await $fetch("/api/requests", { method: "POST", body });
     else await $fetch(`/api/requests/${editDetails.value.id}`, { method: "PUT", body });
 
-    refresh();
+    await Promise.all([refresh(), summary.refresh()]);
     toast.add({ title: isNew.value ? "Request added" : "Request updated", color: "success" });
     showDialog.value = false;
     resetForm();
@@ -304,70 +304,62 @@ async function save({ data }: FormSubmitEvent<typeof edit>) {
     </UModal>
   </div>
 
-  <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
+  <div class="flex flex-wrap gap-3 md:gap-4 pb-4" role="group" aria-label="Request period">
     <UButton
       color="neutral"
-      variant="subtle"
+      :variant="month === 0 ? 'solid' : 'subtle'"
+      :aria-pressed="month === 0"
       :label="`Total: ${summary.data?.value?.total}`"
       size="md"
       class="font-semibold"
-      @click="
-        type = 'All';
-        month = 0;
-      "
+      @click="month = 0"
     />
     <UButton
       color="neutral"
-      variant="subtle"
+      :variant="month === 1 ? 'solid' : 'subtle'"
+      :aria-pressed="month === 1"
       :label="`Month: ${summary.data?.value?.month}`"
       size="md"
       class="font-semibold"
-      @click="
-        type = 'All';
-        month = 1;
-      "
+      @click="month = 1"
     />
     <UButton
       color="neutral"
-      variant="subtle"
+      :variant="month === 3 ? 'solid' : 'subtle'"
+      :aria-pressed="month === 3"
       :label="`3 Month: ${summary.data?.value?.month3}`"
       size="md"
       class="font-semibold"
-      @click="
-        type = 'All';
-        month = 3;
-      "
+      @click="month = 3"
     />
     <UButton
       color="neutral"
-      variant="subtle"
+      :variant="month === 6 ? 'solid' : 'subtle'"
+      :aria-pressed="month === 6"
       :label="`6 Month: ${summary.data?.value?.month6}`"
       size="md"
       class="font-semibold"
-      @click="
-        type = 'All';
-        month = 6;
-      "
+      @click="month = 6"
     />
     <UButton
       color="neutral"
-      variant="subtle"
+      :variant="month === 12 ? 'solid' : 'subtle'"
+      :aria-pressed="month === 12"
       :label="`Year: ${summary.data?.value?.year}`"
       size="md"
       class="font-semibold"
-      @click="
-        type = 'All';
-        month = 12;
-      "
+      @click="month = 12"
     />
   </div>
   <div class="flex flex-wrap gap-3 md:gap-4 pb-4">
     <UButton
       v-for="group in summary.data?.value?.groups"
+      :key="group.type"
       color="neutral"
-      variant="subtle"
+      :variant="type === group.type ? 'solid' : 'subtle'"
+      :aria-pressed="type === group.type"
       size="md"
-      @click="void (type = group.type)"
+      @click="type = type === group.type ? 'All' : group.type"
     >
       <strong>{{ group.type }}:</strong> {{ group.total }}
     </UButton>

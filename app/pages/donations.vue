@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SelectItem, TableColumn } from "@nuxt/ui";
 import { FetchError } from "ofetch";
-import { PER_PAGE } from "~~/shared/utils/const";
+import { SUMMARY_PERIODS, PER_PAGE } from "~~/shared/utils/const";
 
 type DonationRow = NonNullable<typeof data.value>["data"][number];
 
@@ -15,30 +15,42 @@ bloodTypes[0] = "All";
 const page = ref(1);
 const search = ref("");
 const type = ref("All");
+const month = ref(0);
 const toast = useToast();
 const selectedDonation = ref<DonationRow | null>(null);
 const showDeleteDialog = ref(false);
 const isDeleting = ref(false);
 
-watch([search, type], () => {
+watch([search, type, month], () => {
   page.value = 1;
 });
 
 const { data, pending, refresh } = await useLazyFetch("/api/donations", {
-  query: { page, search, type },
+  query: { page, search, type, month },
 });
+const { data: summary, refresh: refreshSummary } = await useLazyFetch("/api/donations-summary", {
+  query: { month, type },
+});
+const donationGroups = computed(() =>
+  bloodTypeValues.filter(Boolean).map((type) => ({
+    type,
+    total: summary.value?.groups.find((group) => group.type === type)?.total ?? 0,
+  })),
+);
+const unknownGroupTotal = computed(
+  () => summary.value?.groups.find((group) => group.type === "")?.total ?? 0,
+);
 
 const columns: TableColumn<DonationRow>[] = [
-  { accessorKey: "id", header: "#" },
   { id: "donor", header: "Donor" },
   { id: "phone", header: "Phone" },
   { accessorKey: "bloodType", header: "Blood Group" },
+  { accessorKey: "donatedAt", header: "Donated" },
   {
-    accessorKey: "donatedAt",
-    header: "Donated",
-    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
+    id: "actions",
+    header: "Delete donation",
+    meta: { class: { th: "text-center", td: "text-center" } },
   },
-  { id: "actions", header: "Actions" },
 ];
 
 function confirmDelete(donation: DonationRow) {
@@ -55,7 +67,7 @@ async function remove() {
 
     showDeleteDialog.value = false;
     toast.add({ title: "Donation deleted", color: "success" });
-    await refresh();
+    await Promise.all([refresh(), refreshSummary()]);
 
     const lastPage = Math.max(1, Math.ceil((data.value?.total ?? 0) / PER_PAGE));
     if (page.value > lastPage) page.value = lastPage;
@@ -76,6 +88,40 @@ async function remove() {
 
 <template>
   <h1 class="text-2xl font-semibold pb-4">Donations</h1>
+
+  <div class="flex flex-wrap gap-3 md:gap-4 pb-4" role="group" aria-label="Donation period">
+    <UButton
+      v-for="period in SUMMARY_PERIODS"
+      :key="period.months"
+      color="neutral"
+      :variant="month === period.months ? 'solid' : 'subtle'"
+      size="md"
+      class="font-semibold"
+      :label="`${period.label}: ${summary?.[period.key] ?? 0}`"
+      :aria-pressed="month === period.months"
+      @click="month = period.months"
+    />
+  </div>
+
+  <div class="pb-4">
+    <div class="flex flex-wrap items-center gap-3 md:gap-4">
+      <UButton
+        v-for="group in donationGroups"
+        :key="group.type"
+        color="neutral"
+        :variant="type === group.type ? 'solid' : 'subtle'"
+        size="md"
+        class="font-semibold"
+        :aria-pressed="type === group.type"
+        @click="type = type === group.type ? 'All' : group.type"
+      >
+        {{ group.type }}: {{ group.total }}
+      </UButton>
+      <span v-if="unknownGroupTotal" class="text-sm text-muted">
+        Unknown group: {{ unknownGroupTotal }}
+      </span>
+    </div>
+  </div>
 
   <div class="flex items-center flex-wrap gap-4">
     <UInput v-model="search" placeholder="Search donor name or phone" />
@@ -100,13 +146,18 @@ async function remove() {
     <template #donatedAt-cell="{ row }">
       <NuxtTime :datetime="row.original.donatedAt" date-style="medium" />
     </template>
+    <template #actions-header>
+      <UIcon name="i-lucide-trash-2" class="size-4 text-muted" aria-hidden="true" />
+      <span class="sr-only">Delete donation</span>
+    </template>
     <template #actions-cell="{ row }">
       <UButton
-        label="Delete"
         icon="i-lucide-trash-2"
+        aria-label="Delete donation"
         color="error"
         variant="ghost"
         :disabled="isDeleting"
+        size="xs"
         @click="confirmDelete(row.original)"
       />
     </template>

@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, gt, like, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, count, eq, inArray, gt, like, lte, or, type SQL, sql, asc } from "drizzle-orm";
 import { donorStatusValues, PER_PAGE } from "~~/shared/utils/const";
 
 type Status = "ready" | "cooldown" | "donors" | "non-donors" | "Temporary" | "Reserved" | "pending";
@@ -62,7 +62,8 @@ export default defineEventHandler(async (event) => {
       .from(schema.users)
       .limit(PER_PAGE)
       .offset(offset)
-      .where(where),
+      .where(where)
+      .orderBy(asc(schema.users.lastDonatedAt)),
     db.select({ count: count() }).from(schema.users).where(where),
   ]);
 

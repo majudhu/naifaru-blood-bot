@@ -1,5 +1,6 @@
 import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { PER_PAGE } from "~~/shared/utils/const";
+import { periodFilter } from "../utils/period-filter";
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event);
@@ -10,11 +11,13 @@ export default defineEventHandler(async (event) => {
     type?: (typeof bloodTypeValues)[number] | "All";
     status?: (typeof requestStatusValues)[number] | "all";
     priority?: string;
+    month?: string;
   }>(event);
 
   const db = useDb(event);
 
   const filters = and(
+    periodFilter(schema.bloodRequests.createdAt, query.month),
     query.search
       ? or(
           like(schema.bloodRequests.location, `%${query.search}%`),

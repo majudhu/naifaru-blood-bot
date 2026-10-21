@@ -11,7 +11,14 @@ const mocks = vi.hoisted(() => ({
   addToast: vi.fn<(...args: unknown[]) => void>(),
   deleteDonation: vi.fn<(...args: unknown[]) => Promise<null>>(),
   refresh: vi.fn<() => Promise<void>>(),
-  useLazyFetch: vi.fn<(_url: string, options: { query: { page: Ref<number> } }) => unknown>(),
+  refreshSummary: vi.fn<() => Promise<void>>(),
+  useLazyFetch:
+    vi.fn<
+      (
+        _url: string,
+        options?: { query: { page?: Ref<number>; type?: Ref<string>; month: Ref<number> } },
+      ) => unknown
+    >(),
 }));
 
 mockNuxtImport("navigateTo", () => vi.fn<() => void>());
@@ -32,14 +39,39 @@ const donation = {
 };
 
 let data: Ref<{ data: (typeof donation)[]; total: number }>;
+let summary: Ref<{
+  total: number;
+  last30Days: number;
+  last90Days: number;
+  last180Days: number;
+  last365Days: number;
+  groups: { type: string; total: number }[];
+}>;
 let component: VueWrapper;
 
 beforeEach(() => {
   vi.clearAllMocks();
   data = ref({ data: [donation], total: 1 });
+  summary = ref({
+    total: 12,
+    last30Days: 3,
+    last90Days: 6,
+    last180Days: 9,
+    last365Days: 12,
+    groups: [
+      { type: "A+", total: 7 },
+      { type: "O+", total: 4 },
+      { type: "", total: 1 },
+    ],
+  });
   mocks.deleteDonation.mockResolvedValue(null);
   mocks.refresh.mockResolvedValue();
-  mocks.useLazyFetch.mockReturnValue({ data, pending: ref(false), refresh: mocks.refresh });
+  mocks.refreshSummary.mockResolvedValue();
+  mocks.useLazyFetch.mockImplementation((url) =>
+    url === "/api/donations-summary"
+      ? { data: summary, pending: ref(false), refresh: mocks.refreshSummary }
+      : { data, pending: ref(false), refresh: mocks.refresh },
+  );
   vi.stubGlobal("$fetch", mocks.deleteDonation);
 });
 
@@ -52,7 +84,7 @@ async function openConfirmation() {
   component = await mountSuspended(Donations, {
     attachTo: document.body,
   });
-  const button = component.findAll("button").find((item) => item.text() === "Delete")!;
+  const button = component.find('button[aria-label="Delete donation"]');
   await button.trigger("click");
   await flushPromises();
   await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
@@ -67,6 +99,78 @@ function confirmationButton(label: string) {
     .findAll("button")
     .find((item) => item.text() === label)!;
 }
+
+describe("donation summary", () => {
+  it("shows all blood groups and donations with an unknown group", async () => {
+    component = await mountSuspended(Donations);
+
+    expect(component.text()).toContain("A+: 7");
+    expect(component.text()).toContain("O+: 4");
+    expect(component.text()).toContain("AB-: 0");
+    expect(component.text()).toContain("Unknown group: 1");
+  });
+
+  it("filters the table by group and resets pagination while keeping other groups visible", async () => {
+    component = await mountSuspended(Donations);
+    const query = mocks.useLazyFetch.mock.calls[0]![1]!.query;
+    query.page!.value = 2;
+    const group = component.findAll("button").find((item) => item.text() === "A+: 7")!;
+
+    await group.trigger("click");
+
+    expect(query.type!.value).toBe("A+");
+    expect(mocks.useLazyFetch.mock.calls[1]![1]!.query.type!.value).toBe("A+");
+    expect(query.page!.value).toBe(1);
+    expect(group.attributes("aria-pressed")).toBe("true");
+    const groupComponent = component
+      .findAllComponents({ name: "UButton" })
+      .find((button) => button.text() === "A+: 7")!;
+    expect(groupComponent.props("variant")).toBe("solid");
+    expect(component.text()).toContain("O+: 4");
+
+    await group.trigger("click");
+
+    expect(query.type!.value).toBe("All");
+    expect(mocks.useLazyFetch.mock.calls[1]![1]!.query.type!.value).toBe("All");
+    expect(group.attributes("aria-pressed")).toBe("false");
+    expect(groupComponent.props("variant")).toBe("subtle");
+  });
+
+  it.each([
+    ["Total: 12", 0],
+    ["Month: 3", 1],
+    ["3 Month: 6", 3],
+    ["6 Month: 9", 6],
+    ["Year: 12", 12],
+  ])(
+    "applies %s to the list and group counts while preserving other filters",
+    async (label, months) => {
+      component = await mountSuspended(Donations);
+      const listQuery = mocks.useLazyFetch.mock.calls[0]![1]!.query;
+      const summaryQuery = mocks.useLazyFetch.mock.calls[1]![1]!.query;
+      listQuery.month.value = months === 6 ? 1 : 6;
+      listQuery.type!.value = "A+";
+      await flushPromises();
+      listQuery.page!.value = 2;
+      const button = component.findAll("button").find((item) => item.text() === label)!;
+
+      await button.trigger("click");
+
+      expect(listQuery.month.value).toBe(months);
+      expect(summaryQuery.month.value).toBe(months);
+      expect(summaryQuery.type!.value).toBe("A+");
+      expect(listQuery.type!.value).toBe("A+");
+      expect(listQuery.page!.value).toBe(1);
+      expect(button.attributes("aria-pressed")).toBe("true");
+      expect(
+        component
+          .findAllComponents({ name: "UButton" })
+          .find((button) => button.text() === label)!
+          .props("variant"),
+      ).toBe("solid");
+    },
+  );
+});
 
 describe("donation deletion", () => {
   it("shows the selected donor and date and allows cancelling without deleting", async () => {
@@ -87,6 +191,16 @@ describe("donation deletion", () => {
     mocks.refresh.mockImplementation(async () => {
       data.value = { data: [], total: 0 };
     });
+    mocks.refreshSummary.mockImplementation(async () => {
+      summary.value = {
+        total: 0,
+        last30Days: 0,
+        last90Days: 0,
+        last180Days: 0,
+        last365Days: 0,
+        groups: [],
+      };
+    });
     await openConfirmation();
     await confirmationButton("Delete donation").trigger("click");
     await flushPromises();
@@ -95,6 +209,9 @@ describe("donation deletion", () => {
       method: "DELETE",
     });
     expect(mocks.refresh).toHaveBeenCalledOnce();
+    expect(mocks.refreshSummary).toHaveBeenCalledOnce();
+    expect(component.text()).toContain("A+: 0");
+    expect(component.text()).not.toContain("Unknown group:");
     expect(confirmation().exists()).toBe(false);
     expect(component.text()).toContain("0 Donations");
     expect(component.text()).not.toContain("Aisha");
@@ -155,7 +272,7 @@ describe("donation deletion", () => {
       data.value = { data: [], total: PER_PAGE };
     });
     await openConfirmation();
-    const page = mocks.useLazyFetch.mock.calls[0]![1].query.page;
+    const page = mocks.useLazyFetch.mock.calls[0]![1]!.query.page!;
     page.value = 2;
 
     await confirmationButton("Delete donation").trigger("click");

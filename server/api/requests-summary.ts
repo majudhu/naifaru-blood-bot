@@ -1,49 +1,46 @@
-import { count, gte, sql } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
+import { SUMMARY_PERIODS } from "../../shared/utils/const";
+import { periodFilter } from "../utils/period-filter";
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event);
 
   const db = useDb(event);
 
-  const query = getQuery<{ month?: string }>(event);
+  const query = getQuery<{
+    month?: string;
+    type?: (typeof bloodTypeValues)[number] | "All";
+  }>(event);
 
-  const days = +query.month! * 30;
+  const selectedPeriod = periodFilter(schema.bloodRequests.createdAt, query.month);
+  const selectedGroup =
+    query.type && query.type !== "All" ? eq(schema.bloodRequests.bloodType, query.type) : undefined;
 
-  const [[total], [month], [month3], [month6], [year], groups] = await Promise.all([
-    db.select({ count: count() }).from(schema.bloodRequests),
-    db
-      .select({ count: count() })
-      .from(schema.bloodRequests)
-      .where(gte(schema.bloodRequests.createdAt, sql`unixepoch('now', '-30 days')`)),
-    db
-      .select({ count: count() })
-      .from(schema.bloodRequests)
-      .where(gte(schema.bloodRequests.createdAt, sql`unixepoch('now', '-90 days')`)),
-    db
-      .select({ count: count() })
-      .from(schema.bloodRequests)
-      .where(gte(schema.bloodRequests.createdAt, sql`unixepoch('now', '-180 days')`)),
-    db
-      .select({ count: count() })
-      .from(schema.bloodRequests)
-      .where(gte(schema.bloodRequests.createdAt, sql`unixepoch('now', '-365 days')`)),
+  const [counts, groups] = await Promise.all([
+    Promise.all(
+      SUMMARY_PERIODS.map((period) =>
+        db
+          .select({ count: count() })
+          .from(schema.bloodRequests)
+          .where(
+            and(periodFilter(schema.bloodRequests.createdAt, String(period.months)), selectedGroup),
+          ),
+      ),
+    ),
     db
       .select({ type: schema.bloodRequests.bloodType, total: count() })
       .from(schema.bloodRequests)
-      .where(
-        days
-          ? gte(schema.bloodRequests.createdAt, sql`unixepoch('now', ${`-${days} days`})`)
-          : undefined,
-      )
+      .where(selectedPeriod)
       .groupBy(schema.bloodRequests.bloodType),
   ]);
+  const [total, month, month3, month6, year] = counts.map(([row]) => row?.count);
 
   return {
-    total: total?.count,
-    month: month?.count,
-    month3: month3?.count,
-    month6: month6?.count,
-    year: year?.count,
+    total,
+    month,
+    month3,
+    month6,
+    year,
     groups,
   };
 });

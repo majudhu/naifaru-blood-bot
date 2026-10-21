@@ -292,8 +292,10 @@ function showUsers(status: "pending" | "donors") {
     <UButton
       v-if="dashboard.data?.value?.ready"
       v-for="group in dashboard.data?.value?.groups"
+      :key="group.type"
       color="neutral"
-      variant="subtle"
+      :variant="type === group.type ? 'solid' : 'subtle'"
+      :aria-pressed="type === group.type"
       size="md"
       @click="void (type = group.type)"
     >

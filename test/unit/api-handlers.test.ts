@@ -595,7 +595,174 @@ describe("users API", () => {
   });
 });
 
+describe("summary blood group filters", () => {
+  it.each([
+    ["../../server/api/donations-summary.get", "donations"],
+    ["../../server/api/requests-summary", "blood_requests"],
+  ])("applies the selected blood group to every periodic count in %s", async (path, table) => {
+    const { default: handler } = await import(path);
+    const db = createDbMock();
+    const counts = [7, 1, 2, 3, 7].map((count) => db.queueSelect([{ count }]));
+    const groups = db.queueSelect([
+      { type: "O+", total: 4 },
+      { type: "A+", total: 2 },
+    ]);
+
+    const result = await handler(createEvent({ db, query: { month: "3", type: "A+" } }));
+
+    expect(result.total).toBe(7);
+    expect(result.groups).toEqual([
+      { type: "O+", total: 4 },
+      { type: "A+", total: 2 },
+    ]);
+    const dialect = new SQLiteSyncDialect();
+    const filters = counts.map((count) => dialect.sqlToQuery(count.where.mock.calls[0]![0] as SQL));
+    expect(filters.map((filter) => filter.params)).toEqual([
+      ["A+"],
+      ["-30 days", "A+"],
+      ["-90 days", "A+"],
+      ["-180 days", "A+"],
+      ["-365 days", "A+"],
+    ]);
+    for (const filter of filters) {
+      expect(filter.sql).toContain(`"${table}"."blood_type" = ?`);
+    }
+    const groupFilter = dialect.sqlToQuery(groups.where.mock.calls[0]![0] as SQL);
+    expect(groupFilter.params).toEqual(["-90 days"]);
+    expect(groupFilter.sql).not.toContain('"blood_type" = ?');
+
+    const allDb = createDbMock();
+    const total = allDb.queueSelect([{ count: 12 }]);
+    for (let i = 0; i < 4; i++) allDb.queueSelect([{ count: 0 }]);
+    allDb.queueSelect([]);
+
+    const all = await handler(createEvent({ db: allDb, query: { month: "3", type: "All" } }));
+
+    expect(all.total).toBe(12);
+    expect(total.where).toHaveBeenCalledWith(undefined);
+  });
+});
+
+describe("donations summary API", () => {
+  it("counts all donations independently of list search and pagination", async () => {
+    const { default: handler } = await import("../../server/api/donations-summary.get");
+    const db = createDbMock();
+    const totalQuery = db.queueSelect([{ count: 12 }]);
+    const recentQuery = db.queueSelect([{ count: 3 }]);
+    db.queueSelect([{ count: 6 }]);
+    db.queueSelect([{ count: 9 }]);
+    db.queueSelect([{ count: 12 }]);
+    const groups = [
+      { type: "A+", total: 7 },
+      { type: "O+", total: 4 },
+      { type: "", total: 1 },
+    ];
+    const groupsQuery = db.queueSelect(groups);
+
+    await expect(
+      handler(createEvent({ db, query: { page: "2", search: "aisha", type: "All" } })),
+    ).resolves.toEqual({
+      total: 12,
+      last30Days: 3,
+      last90Days: 6,
+      last180Days: 9,
+      last365Days: 12,
+      groups,
+    });
+
+    expect(totalQuery.from).toHaveBeenCalledWith(schema.donations);
+    expect(totalQuery.where).toHaveBeenCalledWith(undefined);
+    expect(groupsQuery.groupBy).toHaveBeenCalledWith(schema.donations.bloodType);
+    expect(groupsQuery.where).toHaveBeenCalledWith(undefined);
+    expect(groupsQuery.leftJoin).not.toHaveBeenCalled();
+    const recentFilter = new SQLiteSyncDialect().sqlToQuery(
+      recentQuery.where.mock.calls[0]![0] as SQL,
+    );
+    expect(recentFilter.sql).toContain("unixepoch('now', ?)");
+    expect(recentFilter.params).toEqual(["-30 days"]);
+    expect(recentFilter.sql).toContain('"donations"."donated_at" <= unixepoch(\'now\')');
+  });
+
+  it.each([
+    ["1", 30],
+    ["3", 90],
+    ["6", 180],
+    ["12", 365],
+  ] as const)(
+    "filters group counts to period %s with the same date bounds as the list",
+    async (month, days) => {
+      const { default: handler } = await import("../../server/api/donations-summary.get");
+      const db = createDbMock();
+      for (let i = 0; i < 5; i++) db.queueSelect([{ count: 0 }]);
+      const groupsQuery = db.queueSelect([]);
+
+      const result = await handler(createEvent({ db, query: { month } }));
+
+      expect(result).toMatchObject({ total: 0, last30Days: 0, groups: [] });
+      const filter = new SQLiteSyncDialect().sqlToQuery(groupsQuery.where.mock.calls[0]![0] as SQL);
+      expect(filter.params).toEqual([`-${days} days`]);
+      expect(filter.sql).toContain('"donations"."donated_at" >= unixepoch(\'now\', ?)');
+      expect(filter.sql).toContain('"donations"."donated_at" <= unixepoch(\'now\')');
+    },
+  );
+
+  it.each(["nurse", "lab"])("rejects %s access before reading donations", async (role) => {
+    const { default: handler } = await import("../../server/api/donations-summary.get");
+    const event = createEvent({ session: { user: { id: 3, role } } });
+
+    await expectRejectsWithStatus(handler(event), 403);
+
+    expect(event.db.select).not.toHaveBeenCalled();
+  });
+});
+
 describe("donations API", () => {
+  it.each([
+    ["1", 30],
+    ["3", 90],
+    ["6", 180],
+    ["12", 365],
+  ] as const)(
+    "filters the list and pagination count to period %s alongside search and blood group",
+    async (month, days) => {
+      const { default: handler } = await import("../../server/api/donations.get");
+      const db = createDbMock();
+      const listQuery = db.queueSelect([]);
+      const countQuery = db.queueSelect([{ count: 0 }]);
+
+      await expect(
+        handler(
+          createEvent({
+            db,
+            query: { month, page: "2", search: "aisha", type: "A+" },
+          }),
+        ),
+      ).resolves.toEqual({ data: [], total: 0 });
+
+      const dialect = new SQLiteSyncDialect();
+      const filter = dialect.sqlToQuery(listQuery.where.mock.calls[0]![0] as SQL);
+      expect(filter).toEqual(dialect.sqlToQuery(countQuery.where.mock.calls[0]![0] as SQL));
+      expect(filter.params).toEqual([`-${days} days`, "%aisha%", "%aisha%", "A+"]);
+      expect(filter.sql).toContain('"donations"."donated_at" >= unixepoch(\'now\', ?)');
+      expect(filter.sql).toContain('"donations"."donated_at" <= unixepoch(\'now\')');
+      expect(listQuery.offset).toHaveBeenCalledWith(PER_PAGE);
+    },
+  );
+
+  it.each([
+    "../../server/api/donations.get",
+    "../../server/api/donations-summary.get",
+    "../../server/api/requests.get",
+    "../../server/api/requests-summary",
+  ])("rejects unsupported periods for %s before querying records", async (path) => {
+    const { default: handler } = await import(path);
+    const event = createEvent({ query: { month: "2" } });
+
+    await expectRejectsWithStatus(handler(event), 400);
+
+    expect(event.db.select).not.toHaveBeenCalled();
+  });
+
   it("returns paginated donations with donor details", async () => {
     const { default: handler } = await import("../../server/api/donations.get");
     const db = createDbMock();
@@ -697,6 +864,57 @@ describe("donations API", () => {
 });
 
 describe("requests API", () => {
+  it.each([
+    ["1", 30],
+    ["3", 90],
+    ["6", 180],
+    ["12", 365],
+  ] as const)(
+    "keeps list, pagination and group counts aligned for period %s",
+    async (month, days) => {
+      const { default: listHandler } = await import("../../server/api/requests.get");
+      const { default: summaryHandler } = await import("../../server/api/requests-summary");
+      const db = createDbMock();
+      const list = db.queueSelect([]);
+      const count = db.queueSelect([{ count: 0 }]);
+      for (let i = 0; i < 5; i++) db.queueSelect([{ count: 0 }]);
+      const groups = db.queueSelect([]);
+      const event = createEvent({ db, query: { month } });
+
+      await expect(listHandler(event)).resolves.toEqual({ data: [], total: 0 });
+      await expect(summaryHandler(event)).resolves.toEqual({
+        total: 0,
+        month: 0,
+        month3: 0,
+        month6: 0,
+        year: 0,
+        groups: [],
+      });
+
+      const filters = [list, count, groups].map(
+        (query) => query.where.mock.calls[0]![0] as SQL | undefined,
+      );
+      const queries = filters.map((filter) => new SQLiteSyncDialect().sqlToQuery(filter!));
+      expect(queries[0]).toEqual(queries[1]);
+      expect(queries[0]).toEqual(queries[2]);
+      expect(queries[0]!.params).toEqual([`-${days} days`]);
+      expect(queries[0]!.sql).toContain('"blood_requests"."created_at" >= unixepoch(\'now\', ?)');
+      expect(queries[0]!.sql).toContain('"blood_requests"."created_at" <= unixepoch(\'now\')');
+    },
+  );
+
+  it("clears date restrictions when Total is selected", async () => {
+    const { default: handler } = await import("../../server/api/requests.get");
+    const db = createDbMock();
+    const list = db.queueSelect([]);
+    const count = db.queueSelect([{ count: 0 }]);
+
+    await handler(createEvent({ db, query: { month: "0" } }));
+
+    expect(list.where).toHaveBeenCalledWith(undefined);
+    expect(count.where).toHaveBeenCalledWith(undefined);
+  });
+
   it("returns paginated blood requests", async () => {
     const { default: handler } = await import("../../server/api/requests.get");
     const db = createDbMock();
@@ -704,7 +922,7 @@ describe("requests API", () => {
     const countQuery = db.queueSelect([{ count: 22 }]);
     const event = createEvent({
       db,
-      query: { page: "2", priority: "1", search: "health", status: "open", type: "O+" },
+      query: { page: "2", priority: "1", search: "health", status: "open", type: "O+", month: "3" },
     });
 
     await expect(handler(event)).resolves.toEqual({
@@ -715,6 +933,8 @@ describe("requests API", () => {
     expect(listQuery.limit).toHaveBeenCalledWith(PER_PAGE);
     expect(listQuery.offset).toHaveBeenCalledWith(PER_PAGE);
     expect(countQuery.where).toHaveBeenCalledWith(listQuery.where.mock.calls[0]![0]);
+    const filters = new SQLiteSyncDialect().sqlToQuery(listQuery.where.mock.calls[0]![0] as SQL);
+    expect(filters.params).toEqual(["-90 days", "%health%", "%health%", "O+", "open", 1]);
   });
 
   it("validates and inserts blood requests", async () => {

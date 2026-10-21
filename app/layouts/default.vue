@@ -26,20 +26,19 @@ const items = computed<NavigationMenuItem[]>(() => [
         {
           label: "Requests",
           icon: "i-lucide-inbox",
-          badge: "0",
           to: "/requests",
-          onSelect,
-        },
-        {
-          label: "Staff",
-          icon: "i-lucide-users",
-          to: "/staff",
           onSelect,
         },
         {
           label: "Donations",
           icon: "i-lucide-droplet",
           to: "/donations",
+          onSelect,
+        },
+        {
+          label: "Staff",
+          icon: "i-lucide-users",
+          to: "/staff",
           onSelect,
         },
       ]
