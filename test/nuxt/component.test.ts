@@ -54,6 +54,7 @@ describe("default layout", () => {
 
     expect(component.text()).toContain("Dashboard");
     expect(component.text()).toContain("Requests");
+    expect(component.text()).toContain("Reports");
     expect(component.text()).toContain("Staff");
     expect(component.text()).toContain("Page content");
   });
@@ -67,6 +68,7 @@ describe("default layout", () => {
 
     expect(component.text()).toContain("Dashboard");
     expect(component.text()).not.toContain("Requests");
+    expect(component.text()).not.toContain("Reports");
     expect(component.text()).not.toContain("Staff");
   });
 
@@ -79,6 +81,7 @@ describe("default layout", () => {
 
     expect(component.text()).toContain("Dashboard");
     expect(component.text()).not.toContain("Requests");
+    expect(component.text()).not.toContain("Reports");
     expect(component.text()).not.toContain("Staff");
   });
 });

@@ -36,6 +36,12 @@ const items = computed<NavigationMenuItem[]>(() => [
           onSelect,
         },
         {
+          label: "Reports",
+          icon: "i-lucide-chart-no-axes-combined",
+          to: "/reports",
+          onSelect,
+        },
+        {
           label: "Staff",
           icon: "i-lucide-users",
           to: "/staff",
@@ -80,7 +86,7 @@ const items = computed<NavigationMenuItem[]>(() => [
       <h1 class="text-xl font-semibold pb-4">Naifaru Blood Donors</h1>
     </header>
 
-    <main class="flex-1 p-4">
+    <main class="min-w-0 flex-1 p-4">
       <slot />
     </main>
   </div>
