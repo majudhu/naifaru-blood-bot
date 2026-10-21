@@ -1,4 +1,6 @@
 import * as v from "valibot";
+import { sql } from "drizzle-orm";
+import { auditMutation } from "../utils/audit";
 import { DATE_NIL, donorStatusValues, userStatusValues } from "../../shared/utils/const";
 import { enqueueDonorSummary } from "../utils/telegram/notifications";
 
@@ -61,7 +63,18 @@ export default defineEventHandler(async (event) => {
       statusMessage: "Only admins can manage pending registrations",
     });
 
-  const [newUser] = await db.insert(schema.users).values(body).returning({ id: schema.users.id });
+  const [newUser] = await auditMutation(
+    db,
+    event,
+    user,
+    {
+      action: "create",
+      entityType: "user",
+      entityId: sql`last_insert_rowid()`,
+      details: body,
+    },
+    db.insert(schema.users).values(body).returning({ id: schema.users.id }),
+  );
 
   if (donorStatusValues.some((status) => status === body.status)) {
     await enqueueDonorSummary(

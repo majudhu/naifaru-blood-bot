@@ -1,4 +1,5 @@
 import { relations, sql } from "drizzle-orm";
+import type { AuditAction, AuditEntity } from "../shared/utils/audit";
 import {
   index,
   integer,
@@ -102,6 +103,31 @@ export const staff = sqliteTable(
   (table) => [
     index("staff_role_idx").on(table.role),
     index("staff_is_active_idx").on(table.isActive),
+  ],
+);
+
+export const auditLogs = sqliteTable(
+  "audit_logs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    // Keep the actor snapshot even after a staff account is renamed or deleted.
+    actorId: integer("actor_id"),
+    actorName: text("actor_name").notNull(),
+    actorRole: text("actor_role", { enum: staffRoleValues }),
+    action: text("action").$type<AuditAction>().notNull(),
+    entityType: text("entity_type").$type<AuditEntity>().notNull(),
+    entityId: integer("entity_id"),
+    details: text("details", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    ipAddress: text("ip_address"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [
+    index("audit_logs_created_at_idx").on(table.createdAt, table.id),
+    index("audit_logs_actor_id_idx").on(table.actorId),
+    index("audit_logs_action_idx").on(table.action),
+    index("audit_logs_entity_idx").on(table.entityType, table.entityId),
   ],
 );
 

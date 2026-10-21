@@ -43,6 +43,13 @@
       "when": 1791507989889,
       "tag": "0005_cooldown-reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792604642915,
+      "tag": "0006_audit-logs",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,10 @@ type ErrorInput =
       statusMessage?: string;
     };
 
+export function getRequestHeader(event: { headers?: Record<string, string> }, name: string) {
+  return event.headers?.[name];
+}
+
 export function createError(input: ErrorInput) {
   const isObject = typeof input === "object" && input !== null;
   const statusCode = isObject ? (input.statusCode ?? input.status ?? 500) : 500;

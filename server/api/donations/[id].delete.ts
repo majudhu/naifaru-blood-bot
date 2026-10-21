@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { createError } from "h3";
+import { auditMutation } from "../../utils/audit";
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event);
@@ -10,7 +11,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "Invalid donation ID" });
 
   const db = useDb(event);
-  const result = await db.delete(schema.donations).where(eq(schema.donations.id, donationId));
+  const result = await auditMutation(
+    db,
+    event,
+    user,
+    {
+      action: "delete",
+      entityType: "donation",
+      entityId: donationId,
+    },
+    db.delete(schema.donations).where(eq(schema.donations.id, donationId)),
+  );
 
   if (result.meta.changes === 0)
     throw createError({ statusCode: 404, statusMessage: "Donation not found" });

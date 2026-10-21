@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { and, eq } from "drizzle-orm";
+import { recordAuditLog } from "../utils/audit";
 
 const LoginParser = v.parser(
   v.object({
@@ -19,9 +20,26 @@ export default defineEventHandler(async (event) => {
     .limit(1);
 
   if (user && (await verifyPassword(user.password, password))) {
-    await setUserSession(event, { user: { id: user.id, name: username, role: user.role } });
+    const actor = { id: user.id, name: username, role: user.role };
+    await recordAuditLog(db, event, actor, {
+      action: "login",
+      entityType: "staff",
+      entityId: user.id,
+    });
+    await setUserSession(event, { user: actor });
     return null;
   }
+
+  await recordAuditLog(
+    db,
+    event,
+    { id: null, name: username, role: null },
+    {
+      action: "login_failed",
+      entityType: "staff",
+      entityId: null,
+    },
+  );
 
   throw createError({ status: 401, message: "Bad credentials" });
 });

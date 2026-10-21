@@ -7,6 +7,7 @@ import {
   enqueueRegistrationNotification,
 } from "../../utils/telegram/notifications";
 import { CreateUserSchema } from "../users.post";
+import { auditMutation } from "../../utils/audit";
 
 const UpdateUserParser = v.parser(
   v.object({
@@ -49,10 +50,23 @@ export default defineEventHandler(async (event) => {
       statusMessage: "User status has changed. Reload their details.",
     });
 
-  const result = await db
+  const mutation = db
     .update(schema.users)
     .set({ ...body, updatedAt: sql`unixepoch()` })
     .where(and(eq(schema.users.id, userId), eq(schema.users.status, existing.status)));
+
+  const result = await auditMutation(
+    db,
+    event,
+    user,
+    {
+      action: "update",
+      entityType: "user",
+      entityId: userId,
+      details: { ...body, previousStatus: existing.status },
+    },
+    mutation,
+  );
 
   if (result.meta.changes === 0)
     throw createError({
@@ -64,11 +78,23 @@ export default defineEventHandler(async (event) => {
   const isRealDonation = body.lastDonatedAt.getTime() !== new Date(DATE_NIL).getTime();
 
   if (lastDonatedChanged && isRealDonation) {
-    await db.insert(schema.donations).values({
+    const donation = {
       donorId: userId,
       bloodType: body.bloodType,
       donatedAt: body.lastDonatedAt,
-    });
+    };
+    await auditMutation(
+      db,
+      event,
+      user,
+      {
+        action: "create",
+        entityType: "donation",
+        entityId: sql`last_insert_rowid()`,
+        details: donation,
+      },
+      db.insert(schema.donations).values(donation),
+    );
   }
 
   if (

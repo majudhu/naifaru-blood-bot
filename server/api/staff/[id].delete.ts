@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { createError } from "h3";
+import { auditMutation } from "../../utils/audit";
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event);
@@ -12,7 +13,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "You cannot delete your own account" });
 
   const db = useDb(event);
-  const result = await db.delete(schema.staff).where(eq(schema.staff.id, staffId));
+  const result = await auditMutation(
+    db,
+    event,
+    user,
+    {
+      action: "delete",
+      entityType: "staff",
+      entityId: staffId,
+    },
+    db.delete(schema.staff).where(eq(schema.staff.id, staffId)),
+  );
 
   if (result.meta.changes === 0)
     throw createError({ statusCode: 404, statusMessage: "Staff not found" });

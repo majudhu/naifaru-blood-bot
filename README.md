@@ -49,7 +49,15 @@ Admins review applications using the dashboard's **New Donors Pending Review** c
 
 New applications also generate a direct Telegram notification to the web admin through the Telegram account linked to user row **17**. Group and direct notifications use separate queue messages so their delivery and retries are independent. User 17 must have a linked Telegram account and allow messages from the bot.
 
-The dashboard's new-donor count uses the existing user creation date; recent donations use their donation date over the last 30 days. Registration adds no SQL migration or audit records.
+The dashboard's new-donor count uses the existing user creation date; recent donations use their donation date over the last 30 days.
+
+## Web Audit Log
+
+Admins can open **Audit log** from the sidebar to search and filter a read-only history of web sign-ins, failed sign-ins, sign-outs, and changes to users, blood requests, donations, and staff accounts. Entries include the staff identity and role at the time, affected record, saved details, IP address, and time in Maldives. Passwords, password hashes, and session cookies are never stored in the log. Staff password changes record only that the password changed.
+
+Each data mutation and its audit entry are saved in the same D1 batch. Missing records, rejected input, and stale edits do not produce successful change entries. Actor snapshots remain after staff accounts are renamed or deleted. Telegram and background actions are outside this web-only log.
+
+Apply migration `0006_audit-logs.sql` before deploying this feature. History starts when the feature is deployed; earlier actions cannot be reconstructed. The app provides no API to create, edit, or delete audit entries.
 
 ## Database Migrations
 

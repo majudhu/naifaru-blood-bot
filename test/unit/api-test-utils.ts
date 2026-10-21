@@ -1,4 +1,6 @@
 import { expect, vi } from "vitest";
+import { getTableName, type SQL } from "drizzle-orm";
+import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 
 import * as schema from "../../server/schema";
 import {
@@ -25,6 +27,7 @@ export type TestEvent = {
   db: ReturnType<typeof createDbMock>;
   params: Record<string, string | undefined>;
   query: Record<string, string | undefined>;
+  headers?: Record<string, string>;
   session: TestSession;
   writtenSession?: unknown;
   context: {
@@ -91,12 +94,26 @@ export function createDbMock() {
   const insertQueue: QueryChain<unknown>[] = [];
   const updateQueue: QueryChain<unknown>[] = [];
   const deleteQueue: QueryChain<unknown>[] = [];
+  const auditSelect = vi.fn<(query: SQL) => QueryChain<unknown>>(() =>
+    createQueryChain({ meta: { changes: 1 } }),
+  );
 
   return {
+    batch: vi.fn<(queries: QueryChain<unknown>[]) => Promise<unknown[]>>(async (queries) => {
+      const results: unknown[] = [];
+      for (const query of queries) results.push(await query);
+      return results;
+    }),
+    auditSelect,
     delete: vi.fn<() => QueryChain<unknown>>(() =>
       nextQueued(deleteQueue, { meta: { changes: 0 } }),
     ),
-    insert: vi.fn<() => QueryChain<unknown>>(() => nextQueued(insertQueue, [])),
+    insert: vi.fn<(table: SQLiteTable) => QueryChain<unknown> | { select: typeof auditSelect }>(
+      (table) =>
+        getTableName(table) === "audit_logs"
+          ? { select: auditSelect }
+          : nextQueued(insertQueue, []),
+    ),
     query: {
       staff: {
         findMany: vi.fn<(...args: unknown[]) => unknown>(),
@@ -154,6 +171,8 @@ export const autoImportMocks = {
     vi.fn<(input: Parameters<typeof createError>[0]) => ReturnType<typeof createError>>(),
   defineEventHandler: vi.fn<(handler: unknown) => unknown>(),
   getQuery: vi.fn<(event: TestEvent) => Record<string, string | undefined>>(),
+  getValidatedQuery:
+    vi.fn<(event: TestEvent, parser: (input: unknown) => unknown) => Promise<unknown>>(),
   getRouterParam: vi.fn<(event: TestEvent, key: string) => string | undefined>(),
   hashPassword: vi.fn<(password: string) => Promise<string>>(),
   readValidatedBody:
@@ -174,6 +193,13 @@ export function installApiTestGlobals() {
   });
   autoImportMocks.defineEventHandler.mockImplementation((handler: unknown) => handler);
   autoImportMocks.getQuery.mockImplementation((event: TestEvent) => event.query);
+  autoImportMocks.getValidatedQuery.mockImplementation(async (event, parser) => {
+    try {
+      return parser(event.query);
+    } catch {
+      throw createError({ statusCode: 400, statusMessage: "Invalid query" });
+    }
+  });
   autoImportMocks.getRouterParam.mockImplementation(
     (event: TestEvent, key: string) => event.params[key],
   );
@@ -194,6 +220,7 @@ export function installApiTestGlobals() {
   vi.stubGlobal("defineEventHandler", autoImportMocks.defineEventHandler);
   vi.stubGlobal("donorResponseStatusValues", donorResponseStatusValues);
   vi.stubGlobal("getQuery", autoImportMocks.getQuery);
+  vi.stubGlobal("getValidatedQuery", autoImportMocks.getValidatedQuery);
   vi.stubGlobal("getRouterParam", autoImportMocks.getRouterParam);
   vi.stubGlobal("hashPassword", autoImportMocks.hashPassword);
   vi.stubGlobal("readValidatedBody", autoImportMocks.readValidatedBody);

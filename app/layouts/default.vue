@@ -41,6 +41,12 @@ const items = computed<NavigationMenuItem[]>(() => [
           to: "/staff",
           onSelect,
         },
+        {
+          label: "Audit Log",
+          icon: "i-lucide-history",
+          to: "/audit-logs",
+          onSelect,
+        },
       ]
     : []),
 ]);

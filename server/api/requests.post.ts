@@ -1,4 +1,6 @@
 import * as v from "valibot";
+import { sql } from "drizzle-orm";
+import { auditMutation } from "../utils/audit";
 
 export const CreateRequestParser = v.parser(
   v.object({
@@ -14,15 +16,23 @@ export const CreateRequestParser = v.parser(
 );
 
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event);
+  const { user } = await requireUserSession(event);
 
   const db = useDb(event);
   const body = await readValidatedBody(event, CreateRequestParser);
 
-  const [request] = await db
-    .insert(schema.bloodRequests)
-    .values(body)
-    .returning({ id: schema.bloodRequests.id });
+  const [request] = await auditMutation(
+    db,
+    event,
+    user,
+    {
+      action: "create",
+      entityType: "request",
+      entityId: sql`last_insert_rowid()`,
+      details: body,
+    },
+    db.insert(schema.bloodRequests).values(body).returning({ id: schema.bloodRequests.id }),
+  );
 
   return request;
 });

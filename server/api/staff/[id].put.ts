@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { createError } from "h3";
 import * as v from "valibot";
+import { auditMutation } from "../../utils/audit";
 
 const UpdateStaffSchema = v.parser(
   v.object({
@@ -32,7 +33,7 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event);
 
-  const result = await db
+  const mutation = db
     .update(schema.staff)
     .set({
       ...body,
@@ -40,6 +41,24 @@ export default defineEventHandler(async (event) => {
       updatedAt: sql`unixepoch()`,
     })
     .where(eq(schema.staff.id, staffId));
+
+  const result = await auditMutation(
+    db,
+    event,
+    user,
+    {
+      action: "update",
+      entityType: "staff",
+      entityId: staffId,
+      details: {
+        username: body.username,
+        role: body.role,
+        isActive: body.isActive,
+        passwordChanged: body.password !== undefined,
+      },
+    },
+    mutation,
+  );
 
   if (result.meta.changes === 0)
     throw createError({ statusCode: 404, statusMessage: "Staff user not found" });

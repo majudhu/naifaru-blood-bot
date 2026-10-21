@@ -1,5 +1,7 @@
 import { createError } from "h3";
 import * as v from "valibot";
+import { sql } from "drizzle-orm";
+import { auditMutation } from "../utils/audit";
 
 const CreateStaffParser = v.parser(
   v.object({
@@ -18,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   const body = await readValidatedBody(event, CreateStaffParser);
 
-  const [staff] = await db
+  const mutation = db
     .insert(schema.staff)
     .values({
       username: body.username,
@@ -27,6 +29,19 @@ export default defineEventHandler(async (event) => {
       isActive: body.isActive,
     })
     .returning({ id: schema.staff.id });
+
+  const [staff] = await auditMutation(
+    db,
+    event,
+    user,
+    {
+      action: "create",
+      entityType: "staff",
+      entityId: sql`last_insert_rowid()`,
+      details: { username: body.username, role: body.role, isActive: body.isActive },
+    },
+    mutation,
+  );
 
   return staff;
 });

@@ -462,7 +462,7 @@ describe("users API", () => {
 
     await expect(handler(event)).resolves.toBeNull();
 
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalledWith(schema.donations);
   });
 
   it("does not record a donation when the last donation date is cleared", async () => {
@@ -480,7 +480,7 @@ describe("users API", () => {
 
     await expect(handler(event)).resolves.toBeNull();
 
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalledWith(schema.donations);
   });
 
   it.each(["Donor", "Reserved", "Temporary", "Non-Donor"] as const)(
