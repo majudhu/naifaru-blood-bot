@@ -37,6 +37,7 @@ export default defineEventHandler(async (event) => {
           like(schema.users.name, `%${search}%`),
           like(schema.users.phone, `%${search}%`),
           like(schema.users.nid, `%${search}%`),
+          like(schema.users.address, `%${search}%`),
         )
       : undefined,
     query.type && query.type !== "All" ? eq(schema.users.bloodType, query.type) : undefined,
