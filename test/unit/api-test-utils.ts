@@ -178,7 +178,8 @@ export const autoImportMocks = {
   readValidatedBody:
     vi.fn<(event: TestEvent, parser: (input: unknown) => unknown) => Promise<unknown>>(),
   requireUserSession: vi.fn<(event: TestEvent) => Promise<TestSession>>(),
-  setUserSession: vi.fn<(event: TestEvent, session: unknown) => Promise<void>>(),
+  setUserSession:
+    vi.fn<(event: TestEvent, session: unknown, config?: { maxAge: number }) => Promise<void>>(),
   useDb: vi.fn<(event: TestEvent) => TestEvent["db"]>(),
   verifyPassword: vi.fn<(hash: string, password: string) => Promise<boolean>>(),
 };

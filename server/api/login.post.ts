@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { and, eq } from "drizzle-orm";
 import { recordAuditLog } from "../utils/audit";
+import { SESSION_MAX_AGE } from "../../shared/utils/session";
 
 const LoginParser = v.parser(
   v.object({
@@ -26,7 +27,7 @@ export default defineEventHandler(async (event) => {
       entityType: "staff",
       entityId: user.id,
     });
-    await setUserSession(event, { user: actor });
+    await setUserSession(event, { user: actor }, { maxAge: SESSION_MAX_AGE[actor.role] });
     return null;
   }
 

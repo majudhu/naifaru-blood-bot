@@ -56,25 +56,34 @@ async function expectRejectsWithStatus(run: Promise<unknown>, statusCode: number
 }
 
 describe("login API", () => {
-  it("sets a staff user session for valid credentials", async () => {
-    const { default: handler } = await import("../../server/api/login.post");
-    const db = createDbMock();
-    db.queueSelect([{ id: 7, password: "stored-hash", role: "admin" }]);
-    autoImportMocks.verifyPassword.mockResolvedValue(true);
-    const event = createEvent({
-      body: { password: "password123", username: "admin" },
-      db,
-      session: { user: {} },
-    });
+  it.each([
+    { role: "admin", maxAge: 60 * 60 * 24 * 3 },
+    { role: "lab", maxAge: 60 * 60 * 24 * 3 },
+    { role: "nurse", maxAge: 60 * 60 * 24 * 365 },
+  ])(
+    "sets a $role session with the correct lifetime for valid credentials",
+    async ({ role, maxAge }) => {
+      const { default: handler } = await import("../../server/api/login.post");
+      const db = createDbMock();
+      db.queueSelect([{ id: 7, password: "stored-hash", role }]);
+      autoImportMocks.verifyPassword.mockResolvedValue(true);
+      const event = createEvent({
+        body: { password: "password123", username: "admin" },
+        db,
+        session: { user: {} },
+      });
 
-    await expect(handler(event)).resolves.toBeNull();
+      await expect(handler(event)).resolves.toBeNull();
 
-    expect(autoImportMocks.verifyPassword).toHaveBeenCalledWith("stored-hash", "password123");
-    expect(autoImportMocks.setUserSession).toHaveBeenCalledWith(event, {
-      user: { id: 7, name: "admin", role: "admin" },
-    });
-    expect(event.writtenSession).toEqual({ user: { id: 7, name: "admin", role: "admin" } });
-  });
+      expect(autoImportMocks.verifyPassword).toHaveBeenCalledWith("stored-hash", "password123");
+      expect(autoImportMocks.setUserSession).toHaveBeenCalledWith(
+        event,
+        { user: { id: 7, name: "admin", role } },
+        { maxAge },
+      );
+      expect(event.writtenSession).toEqual({ user: { id: 7, name: "admin", role } });
+    },
+  );
 
   it("rejects bad credentials", async () => {
     const { default: handler } = await import("../../server/api/login.post");

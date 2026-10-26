@@ -1,3 +1,5 @@
+import { SESSION_MAX_AGE } from "../../shared/utils/session";
+
 export default defineEventHandler(async (event) => {
   if (
     !event.path.startsWith("/api/") &&
@@ -12,5 +14,5 @@ export default defineEventHandler(async (event) => {
   if (!session.user) return;
 
   // Replacing resets the session's creation time; updating keeps its original expiry.
-  await replaceUserSession(event, session);
+  await replaceUserSession(event, session, { maxAge: SESSION_MAX_AGE[session.user.role] });
 });

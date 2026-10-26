@@ -43,12 +43,34 @@ describe("Rolling sessions", () => {
     async (event) => {
       await request(event);
 
-      expect(mocks.replaceUserSession).toHaveBeenCalledExactlyOnceWith(event, {
-        user: { id: 1, name: "Admin", role: "admin" },
-        secure: { token: "private-data" },
-      });
+      expect(mocks.replaceUserSession).toHaveBeenCalledExactlyOnceWith(
+        event,
+        {
+          user: { id: 1, name: "Admin", role: "admin" },
+          secure: { token: "private-data" },
+        },
+        { maxAge: 60 * 60 * 24 * 3 },
+      );
     },
   );
+
+  it.each([
+    { role: "nurse", maxAge: 60 * 60 * 24 * 365 },
+    { role: "lab", maxAge: 60 * 60 * 24 * 3 },
+  ])("renews $role sessions for their own lifetime", async ({ role, maxAge }) => {
+    mocks.getUserSession.mockResolvedValue({
+      id: "old-session-id",
+      user: { id: 2, name: "Staff", role },
+    });
+    const event = { path: "/api/users" };
+    await request(event);
+
+    expect(mocks.replaceUserSession).toHaveBeenCalledExactlyOnceWith(
+      event,
+      { user: { id: 2, name: "Staff", role } },
+      { maxAge },
+    );
+  });
 
   it("does not create a session for an anonymous visitor", async () => {
     mocks.getCookie.mockReturnValue(undefined);

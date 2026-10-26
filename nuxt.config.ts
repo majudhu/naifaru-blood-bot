@@ -1,3 +1,5 @@
+import { SESSION_MAX_AGE } from "./shared/utils/session";
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: "2026-05-23",
@@ -31,7 +33,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     session: {
-      maxAge: 60 * 60 * 24 * 3, // 3 days
+      // Allow reading nurse sessions; login and renewal seal each role's own expiry.
+      maxAge: SESSION_MAX_AGE.nurse,
       password: process.env.NUXT_SESSION_PASSWORD!,
     },
   },
