@@ -46,6 +46,7 @@ const search = ref("");
 const searchDebounced = refDebounced(search, 300);
 const type = ref("All");
 const donorStatus = ref("donors");
+const hasStatusFilter = computed(() => donorStatus.value !== "all");
 const sex = ref("all");
 const showDialog = ref(false);
 const isLoading = ref(false);
@@ -88,20 +89,25 @@ const BLANK_USER = {
 
 const edit = reactive({ ...BLANK_USER });
 
-const columns: TableColumn<UserRow>[] = [
+const columns = computed<TableColumn<UserRow>[]>(() => [
   { accessorKey: "id", header: "#", accessorFn: (_, i) => PER_PAGE * (page.value - 1) + i + 1 },
   { accessorKey: "name", header: "Name" },
   {
     accessorKey: "phone",
     header: "Phone",
-    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
+    meta: {
+      class: {
+        th: hasStatusFilter.value ? "" : "hidden sm:table-cell",
+        td: hasStatusFilter.value ? "" : "hidden sm:table-cell",
+      },
+    },
   },
   {
     accessorKey: "address",
     header: "Address",
     meta: { class: { th: "hidden md:table-cell", td: "hidden md:table-cell" } },
   },
-  { accessorKey: "bloodType", header: "Blood Type" },
+  { accessorKey: "bloodType", header: "Type" },
   {
     accessorKey: "lastDonatedAt",
     header: "Last Donated",
@@ -110,6 +116,12 @@ const columns: TableColumn<UserRow>[] = [
   {
     accessorKey: "status",
     header: "Status",
+    meta: {
+      class: {
+        th: hasStatusFilter.value ? "hidden sm:table-cell" : "",
+        td: hasStatusFilter.value ? "hidden sm:table-cell" : "",
+      },
+    },
     cell({ row }) {
       const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / DAY_MS);
       return row.original.status === "Donor"
@@ -119,7 +131,7 @@ const columns: TableColumn<UserRow>[] = [
         : userStatusLabels[row.original.status];
     },
   },
-];
+]);
 
 function resetForm() {
   editDetails.value = {};

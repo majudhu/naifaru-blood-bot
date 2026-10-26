@@ -54,7 +54,7 @@ const columns: TableColumn<RequestRow>[] = [
   { accessorKey: "id", header: "#" },
   { id: "requester", header: "Requester" },
   { id: "phone", header: "Phone" },
-  { accessorKey: "bloodType", header: "Blood Type" },
+  { accessorKey: "bloodType", header: "Type" },
   { accessorKey: "location", header: "Location" },
   {
     accessorKey: "island",
