@@ -11,7 +11,12 @@ const mocks = vi.hoisted(() => ({
   refreshUsers: vi.fn<() => Promise<void>>(async () => {}),
   refreshDashboard: vi.fn<() => Promise<void>>(async () => {}),
   useLazyFetch:
-    vi.fn<(_url: string, _options?: { query: Record<string, Ref<string | number>> }) => unknown>(),
+    vi.fn<
+      (
+        _url: string,
+        _options?: { query: Record<string, Ref<string | number | boolean>> },
+      ) => unknown
+    >(),
   session: { __v_isRef: true, value: { id: 1, name: "Admin", role: "admin" } },
 }));
 
@@ -81,6 +86,83 @@ afterEach(() => {
 function listQuery() {
   return mocks.useLazyFetch.mock.calls.find(([url]) => url === "/api/users")![1]!.query;
 }
+
+describe("Donor list filters and mobile statuses", () => {
+  it("shows unchecked inclusion controls only for donor filters and resets pagination on changes", async () => {
+    component = await mountSuspended(Dashboard);
+    const query = listQuery();
+    expect(query.temporary!.value).toBe(false);
+    expect(query.reserved!.value).toBe(false);
+
+    for (const status of ["donors", "ready", "cooldown"]) {
+      query.status!.value = status;
+      await flushPromises();
+      const checkboxes = component.findAllComponents({ name: "UCheckbox" });
+      expect(checkboxes.map((checkbox) => checkbox.props("label"))).toEqual([
+        "Temporary",
+        "Reserved",
+      ]);
+      for (const [index, flag] of ["temporary", "reserved"].entries()) {
+        query.page!.value = 3;
+        await checkboxes[index]!.find('[role="checkbox"]').trigger("click");
+        expect(query[flag]!.value).toBe(true);
+        expect(query.page!.value).toBe(1);
+        await checkboxes[index]!.find('[role="checkbox"]').trigger("click");
+        expect(query[flag]!.value).toBe(false);
+      }
+    }
+
+    for (const status of ["Temporary", "Reserved", "non-donors", "pending", "all"]) {
+      query.status!.value = status;
+      await flushPromises();
+      expect(component.findAllComponents({ name: "UCheckbox" })).toHaveLength(0);
+    }
+  });
+
+  it("places each status emoji beside the blood type on mobile, with an accessible label", async () => {
+    const cases = [
+      { status: "Donor", daysAgo: 100, emoji: "✅", label: "Donor" },
+      { status: "Donor", daysAgo: 10, emoji: "⏳", label: "Donor · ⏳ 80 days" },
+      { status: "Temporary", emoji: "🕒", label: "Temporary" },
+      {
+        status: "Temporary",
+        daysAgo: 10,
+        emoji: "🕒 ⏳",
+        label: "Temporary · ⏳ 80 days",
+      },
+      { status: "Reserved", emoji: "🔒", label: "Reserved" },
+      { status: "Reserved", daysAgo: 10, emoji: "🔒 ⏳", label: "Reserved · ⏳ 80 days" },
+      { status: "Non-Donor", daysAgo: 10, emoji: "🚫", label: "Non-Donor" },
+      { status: "pending", daysAgo: 10, emoji: "📝", label: "Pending Review" },
+    ];
+    users.value = {
+      data: cases.map(({ status, daysAgo = 100 }, index) => ({
+        ...applicant,
+        id: index + 1,
+        status,
+        lastDonatedAt: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
+      })),
+      total: cases.length,
+    };
+    component = await mountSuspended(Dashboard);
+
+    for (const status of ["donors", "all"]) {
+      listQuery().status!.value = status;
+      await flushPromises();
+      const rows = component.findAll("tbody tr");
+      cases.forEach(({ emoji, label }, index) => {
+        const cells = rows[index]!.findAll("td");
+        const indicator = cells[4]!.find('[role="img"]');
+        expect(cells[4]!.text()).toBe(`O+ ${emoji}`);
+        expect(indicator.attributes("aria-label")).toBe(label);
+        expect(indicator.attributes("title")).toBe(label);
+        expect(indicator.classes()).toContain("sm:hidden");
+        expect(cells[6]!.classes()).toEqual(expect.arrayContaining(["hidden", "sm:table-cell"]));
+        expect(cells[6]!.text()).toBe(label);
+      });
+    }
+  });
+});
 
 function pendingCard() {
   return component

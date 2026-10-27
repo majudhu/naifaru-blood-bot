@@ -287,19 +287,33 @@ describe("users API", () => {
     expect(query.params).toEqual([status]);
   });
 
-  it.each(["donors", "ready", "cooldown"])(
-    "includes every donor status in the web %s filter",
-    async (status) => {
+  describe.each(["donors", "ready", "cooldown"])("web %s filter", (status) => {
+    it.each([
+      { flags: {}, statuses: ["Donor"] },
+      { flags: { temporary: "true" }, statuses: ["Donor", "Temporary"] },
+      { flags: { reserved: "true" }, statuses: ["Donor", "Reserved"] },
+      {
+        flags: { temporary: "true", reserved: "true" },
+        statuses: ["Donor", "Temporary", "Reserved"],
+      },
+      { flags: { temporary: "false", reserved: "false" }, statuses: ["Donor"] },
+    ])("includes only the opted-in statuses: $statuses", async ({ flags, statuses }) => {
       const { default: handler } = await import("../../server/api/users.get");
       const db = createDbMock();
       const list = db.queueSelect([]);
-      db.queueSelect([{ count: 0 }]);
-      await handler(createEvent({ db, query: { status } }));
+      const total = db.queueSelect([{ count: 0 }]);
+      await handler(createEvent({ db, query: { status, ...flags } }));
       const query = new SQLiteSyncDialect().sqlToQuery(list.where.mock.calls[0]![0] as SQL);
-      expect(query.sql).toContain('"users"."status" in (?, ?, ?)');
-      expect(query.params).toEqual(["Donor", "Temporary", "Reserved"]);
-    },
-  );
+      expect(query.params).toEqual(statuses);
+      expect(
+        query.sql.includes("\"users\".\"last_donated_at\" <= unixepoch('now', '-90 days')"),
+      ).toBe(status === "ready");
+      expect(
+        query.sql.includes("\"users\".\"last_donated_at\" > unixepoch('now', '-90 days')"),
+      ).toBe(status === "cooldown");
+      expect(total.where.mock.calls[0]![0]).toBe(list.where.mock.calls[0]![0]);
+    });
+  });
 
   it("returns paginated users with the total", async () => {
     const { default: handler } = await import("../../server/api/users.get");

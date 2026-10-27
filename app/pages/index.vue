@@ -16,14 +16,14 @@ const sexes: SelectItem[] = [
 ];
 
 const donorStatuses = [
-  { label: "Ready now", value: "ready" },
-  { label: "Cooldown", value: "cooldown" },
-  { label: "All donors", value: "donors" },
-  { label: "Temporary", value: "Temporary" },
-  { label: "Reserved", value: "Reserved" },
-  { label: "Non-donors", value: "non-donors" },
-  { label: "Pending Review", value: "pending" },
-  { label: "All users", value: "all" },
+  { label: "✅ Ready now", value: "ready" },
+  { label: "⏳ Cooldown", value: "cooldown" },
+  { label: "🩸 Donors", value: "donors" },
+  { label: "🕒 Temporary", value: "Temporary" },
+  { label: "🔒 Reserved", value: "Reserved" },
+  { label: "🚫 Non-donors", value: "non-donors" },
+  { label: "📝 Pending Review", value: "pending" },
+  { label: "👥 All users", value: "all" },
 ];
 
 const STATUS_FILTER: Record<DbUser["status"], string> = {
@@ -47,6 +47,9 @@ const searchDebounced = refDebounced(search, 300);
 const type = ref("All");
 const donorStatus = ref("donors");
 const hasStatusFilter = computed(() => donorStatus.value !== "all");
+const isDonorFilter = computed(() => ["ready", "cooldown", "donors"].includes(donorStatus.value));
+const temporary = ref(false);
+const reserved = ref(false);
 const sex = ref("all");
 const showDialog = ref(false);
 const isLoading = ref(false);
@@ -69,7 +72,15 @@ const age = computed(() => formatAge(edit.dob));
 const dashboard = await useLazyFetch("/api/dashboard");
 const hasPendingRegistrations = computed(() => (dashboard.data.value?.pending ?? 0) > 0);
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
-  query: { page, search: searchDebounced, type, status: donorStatus, sex },
+  query: {
+    page,
+    search: searchDebounced,
+    type,
+    status: donorStatus,
+    sex,
+    temporary,
+    reserved,
+  },
 });
 
 const BLANK_USER = {
@@ -116,22 +127,30 @@ const columns = computed<TableColumn<UserRow>[]>(() => [
   {
     accessorKey: "status",
     header: "Status",
-    meta: {
-      class: {
-        th: hasStatusFilter.value ? "hidden sm:table-cell" : "",
-        td: hasStatusFilter.value ? "hidden sm:table-cell" : "",
-      },
-    },
+    meta: { class: { th: "hidden sm:table-cell", td: "hidden sm:table-cell" } },
     cell({ row }) {
-      const days = Math.ceil(90 - (Date.now() - Date.parse(row.original.lastDonatedAt)) / DAY_MS);
-      return row.original.status === "Donor"
-        ? days < 1
-          ? "Donor"
-          : `Donor · ⏳ ${days} days`
-        : userStatusLabels[row.original.status];
+      return statusDetails(row.original).label;
     },
   },
 ]);
+
+function statusDetails(user: UserRow) {
+  const days = Math.ceil(90 - (Date.now() - Date.parse(user.lastDonatedAt)) / DAY_MS);
+  if (user.status === "Donor") {
+    return days > 0
+      ? { emoji: "⏳", label: `Donor · ⏳ ${days} days` }
+      : { emoji: "✅", label: "Donor" };
+  }
+
+  const emojis = { Temporary: "🕒", Reserved: "🔒", "Non-Donor": "🚫", pending: "📝" };
+  if (days > 0 && (user.status === "Temporary" || user.status === "Reserved")) {
+    return {
+      emoji: `${emojis[user.status]} ⏳`,
+      label: `${userStatusLabels[user.status]} · ⏳ ${days} days`,
+    };
+  }
+  return { emoji: emojis[user.status], label: userStatusLabels[user.status] };
+}
 
 function resetForm() {
   editDetails.value = {};
@@ -318,7 +337,12 @@ function showUsers(status: "pending" | "donors") {
   <div class="flex items-center flex-wrap gap-4">
     <UInput v-model="search" placeholder="Search" @change="page = 1" />
     <USelect v-model="type" :items="bloodTypes" class="w-20" @change="page = 1" />
-    <USelect v-model="donorStatus" :items="donorStatuses" class="w-40" @change="page = 1" />
+    <USelect v-model="donorStatus" :items="donorStatuses" class="w-44" @change="page = 1" />
+
+    <div v-if="isDonorFilter" class="flex flex-wrap items-center gap-4">
+      <UCheckbox v-model="temporary" label="Temporary" @change="page = 1" />
+      <UCheckbox v-model="reserved" label="Reserved" @change="page = 1" />
+    </div>
 
     <USelect
       v-if="user?.role === 'admin'"
@@ -500,6 +524,18 @@ function showUsers(status: "pending" | "donors") {
     @select="onSelect"
     cellpadding=""
   >
+    <template #bloodType-cell="{ row }">
+      <span class="inline-flex items-center gap-1">
+        {{ row.original.bloodType }}
+        <span
+          class="sm:hidden text-xs"
+          role="img"
+          :aria-label="statusDetails(row.original).label"
+          :title="statusDetails(row.original).label"
+          >{{ statusDetails(row.original).emoji }}</span
+        >
+      </span>
+    </template>
     <template #lastDonatedAt-cell="{ row }">
       <span v-if="isDateNil(row.original.lastDonatedAt)">-</span>
       <NuxtTime v-else :datetime="row.original.lastDonatedAt" date-style="short" />
