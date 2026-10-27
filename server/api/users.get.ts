@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
     temporary?: string;
     reserved?: string;
     sex?: "all" | "m" | "f";
+    island?: string;
   }>(event);
 
   const offset = ((+query.page! || 1) - 1) * PER_PAGE;
@@ -46,6 +47,7 @@ export default defineEventHandler(async (event) => {
       : undefined,
     query.type && query.type !== "All" ? eq(schema.users.bloodType, query.type) : undefined,
     statusFilter[query.status!],
+    query.island !== undefined ? eq(schema.users.island, query.island) : undefined,
     query.sex === "m"
       ? eq(schema.users.sex, "m")
       : query.sex === "f"

@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, gte, lte, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, gte, lte, sql } from "drizzle-orm";
 import { donorStatusValues } from "../../shared/utils/const";
 
 export default defineEventHandler(async (event) => {
@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
     [pending],
     [donations],
     [recentDonations],
+    islands,
   ] = await Promise.all([
     db.select({ count: count() }).from(schema.users).where(donorFilter),
     db
@@ -53,6 +54,10 @@ export default defineEventHandler(async (event) => {
           lte(schema.donations.donatedAt, sql`unixepoch('now')`),
         ),
       ),
+    db
+      .selectDistinct({ island: schema.users.island })
+      .from(schema.users)
+      .orderBy(asc(schema.users.island)),
   ]);
 
   return {
@@ -64,5 +69,6 @@ export default defineEventHandler(async (event) => {
     pending: pending?.count,
     donations: donations?.count,
     donationsLast30Days: recentDonations?.count,
+    islands: islands.map(({ island }) => island),
   };
 });

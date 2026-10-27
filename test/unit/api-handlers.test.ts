@@ -258,6 +258,32 @@ describe("staff API", () => {
 });
 
 describe("users API", () => {
+  it.each(["Naifaru", "", "All"])(
+    "filters both the user list and total by island %j alongside other filters",
+    async (island) => {
+      const { default: handler } = await import("../../server/api/users.get");
+      const db = createDbMock();
+      const list = db.queueSelect([]);
+      const total = db.queueSelect([{ count: 0 }]);
+      await handler(createEvent({ db, query: { island, status: "donors", type: "A+" } }));
+      const where = list.where.mock.calls[0]![0] as SQL;
+      const query = new SQLiteSyncDialect().sqlToQuery(where);
+      expect(query.sql).toContain('"users"."island" = ?');
+      expect(query.params).toEqual(["A+", "Donor", island]);
+      expect(total.where.mock.calls[0]![0]).toBe(where);
+    },
+  );
+
+  it("does not filter by island when no island is selected", async () => {
+    const { default: handler } = await import("../../server/api/users.get");
+    const db = createDbMock();
+    const list = db.queueSelect([]);
+    db.queueSelect([{ count: 0 }]);
+    await handler(createEvent({ db, query: { status: "donors" } }));
+    const query = new SQLiteSyncDialect().sqlToQuery(list.where.mock.calls[0]![0] as SQL);
+    expect(query.sql).not.toContain('"island"');
+  });
+
   it.each(["Donor", "Temporary", "Reserved", "Non-Donor", "pending"])(
     "accepts user status %s",
     async (status) => {
@@ -1066,6 +1092,11 @@ describe("dashboard API", () => {
     const pending = db.queueSelect([{ count: 3 }]);
     db.queueSelect([{ count: 80 }]);
     const recent = db.queueSelect([{ count: 6 }]);
+    const islands = db.queueSelect([
+      { island: "" },
+      { island: "Hinnavaru" },
+      { island: "Naifaru" },
+    ]);
 
     await expect(handler(createEvent({ db }))).resolves.toEqual({
       donors: 30,
@@ -1076,7 +1107,13 @@ describe("dashboard API", () => {
       pending: 3,
       donations: 80,
       donationsLast30Days: 6,
+      islands: ["", "Hinnavaru", "Naifaru"],
     });
+    expect(db.selectDistinct).toHaveBeenCalledWith({ island: schema.users.island });
+    expect(islands.from).toHaveBeenCalledWith(schema.users);
+    expect(islands.where).not.toHaveBeenCalled();
+    expect(islands.limit).not.toHaveBeenCalled();
+    expect(islands.orderBy).toHaveBeenCalledOnce();
     for (const select of queries) {
       const query = new SQLiteSyncDialect().sqlToQuery(select.where.mock.calls[0]![0] as SQL);
       expect(query.sql).toContain('"users"."status" in (?, ?, ?)');

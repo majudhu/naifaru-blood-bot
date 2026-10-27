@@ -71,6 +71,7 @@ beforeEach(() => {
             pending: 1,
             donations: 80,
             donationsLast30Days: 6,
+            islands: ["", "Hinnavaru", "Naifaru"],
           }),
     pending: ref(false),
     refresh: url === "/api/users" ? mocks.refreshUsers : mocks.refreshDashboard,
@@ -88,6 +89,33 @@ function listQuery() {
 }
 
 describe("Donor list filters and mobile statuses", () => {
+  it("filters by island, including missing islands, and resets pagination", async () => {
+    component = await mountSuspended(Dashboard, { attachTo: document.body });
+    const query = listQuery();
+    expect(query.island!.value).toBeUndefined();
+
+    for (const [label, value] of [
+      ["Naifaru", "Naifaru"],
+      ["(None)", ""],
+      ["All islands", undefined],
+    ]) {
+      query.page!.value = 3;
+      await component.find('[aria-label="Filter by island"]').trigger("click");
+      await flushPromises();
+      const options = new DOMWrapper(document.body).findAll('[role="option"]');
+      expect(options.map((option) => option.text())).toEqual([
+        "All islands",
+        "(None)",
+        "Hinnavaru",
+        "Naifaru",
+      ]);
+      await options.find((option) => option.text() === label)!.trigger("click");
+      await flushPromises();
+      expect(query.island!.value).toBe(value);
+      expect(query.page!.value).toBe(1);
+    }
+  });
+
   it("shows unchecked inclusion controls only for donor filters and resets pagination on changes", async () => {
     component = await mountSuspended(Dashboard);
     const query = listQuery();

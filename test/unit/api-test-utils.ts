@@ -140,6 +140,9 @@ export function createDbMock() {
       return chain;
     },
     select: vi.fn<() => QueryChain<unknown>>(() => nextQueued(selectQueue, [])),
+    selectDistinct: vi.fn<(...args: unknown[]) => QueryChain<unknown>>(() =>
+      nextQueued(selectQueue, []),
+    ),
     update: vi.fn<() => QueryChain<unknown>>(() =>
       nextQueued(updateQueue, { meta: { changes: 0 } }),
     ),

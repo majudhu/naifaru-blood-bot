@@ -51,6 +51,8 @@ const isDonorFilter = computed(() => ["ready", "cooldown", "donors"].includes(do
 const temporary = ref(false);
 const reserved = ref(false);
 const sex = ref("all");
+const allIslands = { label: "All islands", value: undefined };
+const island = ref<{ label: string; value: string | undefined }>(allIslands);
 const showDialog = ref(false);
 const isLoading = ref(false);
 const editDetails = shallowRef<Partial<InternalApi["/api/users/:id"]["get"]>>({});
@@ -70,6 +72,13 @@ const dialogTitle = computed(() =>
 const age = computed(() => formatAge(edit.dob));
 
 const dashboard = await useLazyFetch("/api/dashboard");
+const islands = computed(() => [
+  allIslands,
+  { label: "(None)", value: "" },
+  ...(dashboard.data.value?.islands ?? [])
+    .filter((value) => value !== "")
+    .map((value) => ({ label: value, value })),
+]);
 const hasPendingRegistrations = computed(() => (dashboard.data.value?.pending ?? 0) > 0);
 const { data, pending, refresh } = await useLazyFetch("/api/users", {
   query: {
@@ -78,6 +87,7 @@ const { data, pending, refresh } = await useLazyFetch("/api/users", {
     type,
     status: donorStatus,
     sex,
+    island: computed(() => island.value.value),
     temporary,
     reserved,
   },
@@ -246,6 +256,7 @@ function showUsers(status: "pending" | "donors") {
   search.value = "";
   type.value = "All";
   sex.value = "all";
+  island.value = allIslands;
   page.value = 1;
   donorStatus.value = status;
 }
@@ -318,6 +329,8 @@ function showUsers(status: "pending" | "donors") {
         donorStatus = 'ready';
         type = 'All';
         sex = 'all';
+        island = allIslands;
+        page = 1;
       "
     />
     <UButton
@@ -338,6 +351,14 @@ function showUsers(status: "pending" | "donors") {
     <UInput v-model="search" placeholder="Search" @change="page = 1" />
     <USelect v-model="type" :items="bloodTypes" class="w-20" @change="page = 1" />
     <USelect v-model="donorStatus" :items="donorStatuses" class="w-44" @change="page = 1" />
+    <USelectMenu
+      v-model="island"
+      :items="islands"
+      by="value"
+      aria-label="Filter by island"
+      class="w-44"
+      @change="page = 1"
+    />
 
     <div v-if="isDonorFilter" class="flex flex-wrap items-center gap-4">
       <UCheckbox v-model="temporary" label="Temporary" @change="page = 1" />
